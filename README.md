@@ -398,6 +398,8 @@ sudo ./deploy-docker.sh
 - 🔧 优化下拉按钮的定位逻辑，使用 ID 直接查找
 - 🔧 改进下拉按钮的 CSS 样式，确保可点击性（pointer-events, cursor, user-select）
 - 🔧 添加 `.dropdown-toggle-btn` 样式类，提高按钮可用性
+- 🔧 添加浏览器兼容性说明：支持 Chrome、Firefox、Edge、Safari、Opera
+
 - 📝 更新 README 文档
 
 ### 版本 1.0.1
