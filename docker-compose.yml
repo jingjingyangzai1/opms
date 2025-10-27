@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  ops-management:
+    build: .
+    container_name: ops-management
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - /var/log/ops-management:/var/log/ops-management
+    environment:
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this}
+      - DATABASE_URL=sqlite:////app/data/ops_management.db
+    networks:
+      - ops-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  ops-network:
+    driver: bridge
+
+volumes:
+  data:
+  logs:
+
+

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}登录 - 运维管理系统{% endblock %}
+
+{% block content %}
+<div class="min-vh-100 d-flex align-items-center justify-content-center position-relative" style="overflow: hidden;">
+    <!-- 背景动画效果 -->
+    <div style="
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: 
+            radial-gradient(circle at 20% 50%, rgba(0, 212, 255, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 80% 20%, rgba(0, 153, 204, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 40% 80%, rgba(0, 102, 153, 0.1) 0%, transparent 50%);
+        animation: pulse 4s ease-in-out infinite;
+    "></div>
+    
+    <div class="tech-card" style="width: 400px; position: relative; z-index: 1;">
+        <div class="card-body p-5">
+            <div class="text-center mb-4">
+                <h2 class="text-white mb-2">运维管理系统</h2>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST">
+                <div class="mb-3">
+                    <label for="username" class="form-label text-white">用户名</label>
+                    <div class="input-group">
+                        <span class="input-group-text" style="background: rgba(0, 212, 255, 0.2); border: 1px solid rgba(0, 212, 255, 0.3); color: #00d4ff;">
+                            <i class="fas fa-user"></i>
+                        </span>
+                        <input type="text" class="form-control tech-input" id="username" name="username" placeholder="请输入用户名" required>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="password" class="form-label text-white">密码</label>
+                    <div class="input-group">
+                        <span class="input-group-text" style="background: rgba(0, 212, 255, 0.2); border: 1px solid rgba(0, 212, 255, 0.3); color: #00d4ff;">
+                            <i class="fas fa-lock"></i>
+                        </span>
+                        <input type="password" class="form-control tech-input" id="password" name="password" placeholder="请输入密码" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn tech-btn w-100 py-3" style="font-size: 16px;">
+                    <i class="fas fa-sign-in-alt me-2"></i>登录
+                </button>
+            </form>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

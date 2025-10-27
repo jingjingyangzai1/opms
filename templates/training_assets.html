@@ -1,0 +1,1033 @@
+{% extends "base.html" %}
+
+{% block title %}训练系统资产 - 运维管理系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- 侧边栏 -->
+        <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+            <div class="position-sticky pt-3">
+                <div class="text-center mb-4">
+                    <div style="font-size: 32px; color: #00d4ff; margin-bottom: 8px;">
+                        <i class="fas fa-database"></i>
+                    </div>
+                    <h5 class="text-white">运维管理系统</h5>
+                </div>
+                
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('training_assets') }}">
+                            <i class="fas fa-database me-2"></i>训练系统资产
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('physical_servers') }}">
+                            <i class="fas fa-server me-2"></i>主控物理服务器
+                        </a>
+                    </li>
+                </ul>
+                
+                <!-- 用户管理区域 -->
+                <div class="mt-4 pt-3" style="border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                    <h6 class="text-white-50 mb-3">用户管理</h6>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('users') }}">
+                                <i class="fas fa-users me-2"></i>用户管理
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主内容区 -->
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <!-- 顶部导航 -->
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom" style="border-color: rgba(0, 212, 255, 0.3) !important;">
+                <h1 class="h2 text-white">
+                    <i class="fas fa-database me-2" style="color: #00d4ff;"></i>训练系统资产管理
+                </h1>
+                <div class="btn-toolbar mb-2 mb-md-0">
+                    <div class="btn-group me-2">
+                        <button class="btn tech-btn" data-bs-toggle="modal" data-bs-target="#addAssetModal">
+                            <i class="fas fa-plus me-1"></i>添加资产
+                        </button>
+                        <span class="text-white me-3 ms-3">欢迎, {{ current_user.name }}</span>
+                        <a href="{{ url_for('logout') }}" class="btn btn-outline-danger">
+                            <i class="fas fa-sign-out-alt me-1"></i>退出
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+             <!-- 统计卡片 -->
+             <div class="row mb-4">
+                 <div class="col-md-6">
+                     <div class="tech-card p-3 text-center" style="background: rgba(0, 212, 255, 0.1); border: 1px solid rgba(0, 212, 255, 0.3);">
+                         <i class="fas fa-database fa-2x mb-2" style="color: #00d4ff;"></i>
+                         <h5 class="text-white mb-1" id="totalAssets">0</h5>
+                         <small class="text-white-50">总资产数</small>
+                     </div>
+                 </div>
+                 <div class="col-md-6">
+                     <div class="tech-card p-3 text-center" style="background: rgba(82, 196, 26, 0.1); border: 1px solid rgba(82, 196, 26, 0.3);">
+                         <i class="fas fa-check-circle fa-2x mb-2" style="color: #52c41a;"></i>
+                         <h5 class="text-white mb-1" id="onlineAssets">0</h5>
+                         <small class="text-white-50">在线资产</small>
+                     </div>
+                 </div>
+             </div>
+
+            <!-- 资产列表 -->
+            <div class="main-content">
+                <div class="table-responsive" style="width: 100%; max-width: none;">
+                    <table class="table table-dark table-hover" style="width: 100%; min-width: 1200px;">
+                         <thead>
+                             <tr>
+                                 <th><i class="fas fa-tag me-1"></i>资产名称</th>
+                                 <th><i class="fas fa-cog me-1"></i>类型</th>
+                                 <th><i class="fas fa-circle me-1"></i>状态</th>
+                                 <th><i class="fas fa-network-wired me-1"></i>IP地址</th>
+                                 <th><i class="fas fa-plug me-1"></i>端口</th>
+                                 <th><i class="fas fa-clock me-1"></i>最后更新</th>
+                                 <th><i class="fas fa-tools me-1"></i>操作</th>
+                             </tr>
+                         </thead>
+                        <tbody id="assetsTableBody">
+                            <!-- 资产数据将通过JavaScript动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- 添加资产模态框 -->
+<div class="modal fade" id="addAssetModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content" style="background: rgba(0, 0, 0, 0.9); border: 1px solid rgba(0, 212, 255, 0.3);">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(0, 212, 255, 0.3);">
+                <h5 class="modal-title text-white">
+                    <i class="fas fa-plus me-2" style="color: #00d4ff;"></i>添加资产
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addAssetForm">
+                    <div class="mb-3">
+                        <label for="assetName" class="form-label text-white">资产名称</label>
+                        <input type="text" class="form-control tech-input" id="assetName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="assetType" class="form-label text-white">资产类型</label>
+                        <select class="form-select tech-input" id="assetType" name="type" required>
+                            <option value="虚拟资产">虚拟资产</option>
+                            <option value="物理资产">物理资产</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="assetIp" class="form-label text-white">IP地址</label>
+                        <input type="text" class="form-control tech-input" id="assetIp" name="ip" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="assetPort" class="form-label text-white">端口</label>
+                        <input type="number" class="form-control tech-input" id="assetPort" name="port" value="22" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="assetUsername" class="form-label text-white">账户</label>
+                        <input type="text" class="form-control tech-input" id="assetUsername" name="username" placeholder="请输入账户名" value="">
+                    </div>
+                    <div class="mb-3">
+                        <label for="assetPassword" class="form-label text-white">密码</label>
+                        <input type="password" class="form-control tech-input" id="assetPassword" name="password" placeholder="请输入密码" value="">
+                    </div>
+                    <div class="mb-3">
+                        <label for="assetDescription" class="form-label text-white">描述</label>
+                        <textarea class="form-control tech-input" id="assetDescription" name="description" rows="1" style="height: 38px; resize: none;"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid rgba(0, 212, 255, 0.3);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn tech-btn" onclick="addAsset()">
+                    <i class="fas fa-save me-1"></i>保存
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑资产模态框 -->
+<div class="modal fade" id="editAssetModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content" style="background: rgba(0, 0, 0, 0.9); border: 1px solid rgba(0, 212, 255, 0.3);">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(0, 212, 255, 0.3);">
+                <h5 class="modal-title text-white">
+                    <i class="fas fa-edit me-2" style="color: #00d4ff;"></i>编辑资产
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editAssetForm">
+                    <input type="hidden" id="editAssetId" name="id">
+                    <div class="mb-3">
+                        <label for="editAssetName" class="form-label text-white">资产名称</label>
+                        <input type="text" class="form-control tech-input" id="editAssetName" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editAssetType" class="form-label text-white">资产类型</label>
+                        <select class="form-select tech-input" id="editAssetType" name="type" required>
+                                    <option value="物理资产">物理资产</option>
+                                    <option value="虚拟资产">虚拟资产</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editAssetIp" class="form-label text-white">IP地址</label>
+                        <input type="text" class="form-control tech-input" id="editAssetIp" name="ip" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editAssetPort" class="form-label text-white">端口</label>
+                        <input type="number" class="form-control tech-input" id="editAssetPort" name="port" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editAssetUsername" class="form-label text-white">账户</label>
+                        <input type="text" class="form-control tech-input" id="editAssetUsername" name="username" placeholder="请输入账户名">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editAssetPassword" class="form-label text-white">密码</label>
+                        <input type="password" class="form-control tech-input" id="editAssetPassword" name="password" placeholder="请输入密码">
+                    </div>
+                    <div class="mb-3">
+                        <label for="editAssetDescription" class="form-label text-white">描述</label>
+                        <textarea class="form-control tech-input" id="editAssetDescription" name="description" rows="1" style="height: 38px; resize: none;"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid rgba(0, 212, 255, 0.3);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn tech-btn" onclick="updateAsset()">
+                    <i class="fas fa-save me-1"></i>更新
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentAssets = [];
+
+// 全局变量存储当前打开的下拉菜单
+let currentDropdown = null;
+
+// 切换下拉菜单显示/隐藏
+function toggleDropdown(assetId) {
+    console.log('toggleDropdown called with assetId:', assetId);
+    const menu = document.getElementById(`dropdown-${assetId}`);
+    console.log('Found menu element:', menu);
+    if (!menu) {
+        console.error('Menu not found for assetId:', assetId);
+        return;
+    }
+    
+    // 如果当前菜单已经打开，则关闭它
+    if (currentDropdown === assetId) {
+        console.log('Closing current dropdown');
+        closeDropdown(assetId);
+        return;
+    }
+    
+    // 关闭其他所有下拉菜单
+    closeAllDropdowns();
+    
+    // 显示当前菜单
+    console.log('Showing dropdown for assetId:', assetId);
+    showDropdown(assetId);
+}
+
+// 显示下拉菜单
+function showDropdown(assetId) {
+    console.log('showDropdown called with assetId:', assetId);
+    const menu = document.getElementById(`dropdown-${assetId}`);
+    if (!menu) {
+        console.error('Menu not found in showDropdown for assetId:', assetId);
+        return;
+    }
+    
+    const button = menu.previousElementSibling;
+    if (!button) {
+        console.error('Button not found for menu:', menu);
+        return;
+    }
+    
+    console.log('Button found:', button);
+    const buttonRect = button.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    console.log('Button rect:', buttonRect);
+    console.log('Viewport size:', viewportWidth, 'x', viewportHeight);
+    
+    // 菜单尺寸
+    const menuWidth = 130;
+    const menuHeight = 90;
+    const padding = 15;
+    
+    // 计算位置 - 简化逻辑
+    let left = buttonRect.right - menuWidth; // 默认右对齐
+    let top = buttonRect.bottom + 8; // 默认向下显示
+    
+    // 水平边界检查
+    if (left < padding) {
+        left = buttonRect.left; // 改为左对齐
+    }
+    if (left + menuWidth > viewportWidth - padding) {
+        left = viewportWidth - menuWidth - padding; // 强制右边界
+    }
+    
+    // 垂直边界检查
+    if (top + menuHeight > viewportHeight - padding) {
+        top = buttonRect.top - menuHeight - 8; // 改为向上显示
+    }
+    if (top < padding) {
+        top = padding; // 强制上边界
+    }
+    
+    console.log('Calculated position:', left, top);
+    
+    // 应用样式
+    menu.style.position = 'fixed';
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
+    menu.style.zIndex = '10000';
+    menu.style.width = menuWidth + 'px';
+    menu.style.height = menuHeight + 'px';
+    menu.style.display = 'block';
+    menu.style.visibility = 'visible';
+    menu.style.opacity = '0';
+    menu.style.transform = 'scale(0.9)';
+    menu.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+    menu.style.pointerEvents = 'auto';
+    
+    console.log('Menu styles applied, triggering animation');
+    
+    // 触发动画
+    requestAnimationFrame(() => {
+        menu.style.opacity = '1';
+        menu.style.transform = 'scale(1)';
+        console.log('Animation triggered');
+    });
+    
+    // 标记为当前打开的下拉菜单
+    currentDropdown = assetId;
+    console.log('Current dropdown set to:', currentDropdown);
+}
+
+// 关闭指定下拉菜单
+function closeDropdown(assetId) {
+    const menu = document.getElementById(`dropdown-${assetId}`);
+    if (menu) {
+        menu.style.opacity = '0';
+        menu.style.transform = 'scale(0.9)';
+        menu.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
+        
+        // 延迟隐藏
+        setTimeout(() => {
+            menu.style.display = 'none';
+            menu.style.visibility = 'hidden';
+        }, 150);
+    }
+    
+    if (currentDropdown === assetId) {
+        currentDropdown = null;
+    }
+}
+
+// 关闭所有下拉菜单
+function closeAllDropdowns() {
+    document.querySelectorAll('.dropdown-menu').forEach(menu => {
+        if (menu.style.display !== 'none') {
+            menu.style.opacity = '0';
+            menu.style.transform = 'scale(0.9)';
+            menu.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
+            
+            setTimeout(() => {
+                menu.style.display = 'none';
+                menu.style.visibility = 'hidden';
+            }, 150);
+        }
+    });
+    currentDropdown = null;
+}
+
+// 页面加载时获取资产数据
+document.addEventListener('DOMContentLoaded', function() {
+    loadAssets();
+    
+    // 点击页面其他地方关闭所有下拉菜单
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.dropdown') && !e.target.closest('.dropdown-menu')) {
+            closeAllDropdowns();
+        }
+    });
+    
+    // 窗口大小改变时关闭所有下拉菜单
+    window.addEventListener('resize', function() {
+        closeAllDropdowns();
+    });
+    
+    // 滚动时关闭所有下拉菜单
+    window.addEventListener('scroll', function() {
+        closeAllDropdowns();
+    }, true);
+});
+
+// 加载资产数据
+async function loadAssets() {
+    try {
+        const response = await axios.get('/api/assets?category=training');
+        currentAssets = response.data;
+        updateAssetsTable();
+        updateStatistics();
+    } catch (error) {
+        console.error('加载资产数据失败:', error);
+        showAlert('加载资产数据失败！', 'danger');
+    }
+}
+
+// 更新资产表格
+function updateAssetsTable() {
+    const tbody = document.getElementById('assetsTableBody');
+    tbody.innerHTML = '';
+    
+    currentAssets.forEach(asset => {
+        const row = document.createElement('tr');
+         row.innerHTML = `
+             <td>
+                 <i class="fas fa-database me-2" style="color: #00d4ff;"></i>
+                 <span class="text-white">${asset.name}</span>
+             </td>
+             <td><span class="badge bg-primary">${asset.type}</span></td>
+             <td>${getStatusBadge(asset.status)}</td>
+             <td><span class="text-info font-monospace">${asset.ip}</span></td>
+             <td><span class="text-white-50">${asset.port}</span></td>
+             <td><span class="text-white-50">${asset.last_update}</span></td>
+                    <td>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-success" onclick="restartAsset(${asset.id})" title="重启">
+                                <i class="fas fa-redo"></i>
+                            </button>
+                            <button class="btn btn-warning" onclick="shutdownAsset(${asset.id})" title="关机">
+                                <i class="fas fa-power-off"></i>
+                            </button>
+                            <button class="btn btn-info" onclick="openTerminal(${asset.id})" title="SSH终端">
+                                <i class="fas fa-terminal"></i>
+                            </button>
+                            <div class="btn-group">
+                                <button type="button" class="btn btn-secondary" onclick="toggleDropdown(${asset.id})" title="更多操作">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </button>
+                                <ul class="dropdown-menu" id="dropdown-${asset.id}" role="menu">
+                                    <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); editAsset(${asset.id}); closeDropdown(${asset.id})" role="menuitem"><i class="fas fa-edit me-2"></i>编辑</a></li>
+                                    <li><a class="dropdown-item text-danger" href="#" onclick="event.preventDefault(); deleteAsset(${asset.id}); closeDropdown(${asset.id})" role="menuitem"><i class="fas fa-trash me-2"></i>删除</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </td>
+         `;
+        tbody.appendChild(row);
+    });
+}
+
+// 获取状态徽章
+function getStatusBadge(status) {
+    const statusConfig = {
+        'online': { class: 'bg-success', text: '在线', icon: 'fas fa-check-circle' },
+        'offline': { class: 'bg-danger', text: '离线', icon: 'fas fa-times-circle' },
+        'maintenance': { class: 'bg-warning', text: '维护中', icon: 'fas fa-tools' }
+    };
+    const config = statusConfig[status] || statusConfig['offline'];
+    return `<span class="badge ${config.class}"><i class="${config.icon} me-1"></i>${config.text}</span>`;
+}
+
+// 更新统计信息
+function updateStatistics() {
+    const totalAssets = currentAssets.length;
+    const onlineAssets = currentAssets.filter(asset => asset.status === 'online').length;
+    
+    document.getElementById('totalAssets').textContent = totalAssets;
+    document.getElementById('onlineAssets').textContent = onlineAssets;
+}
+
+// 添加资产
+async function addAsset() {
+    const form = document.getElementById('addAssetForm');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData);
+    // 根据资产类型自动分配类别，无需手动设置
+    
+    // 验证IP地址格式
+    if (!isValidIP(data.ip)) {
+        showAlert('请输入有效的IP地址格式！', 'danger');
+        return;
+    }
+    
+    try {
+        const response = await axios.post('/api/assets', data);
+        if (response.data.success) {
+            showAlert(response.data.message, 'success');
+            document.getElementById('addAssetModal').querySelector('.btn-close').click();
+            form.reset();
+            loadAssets();
+        } else {
+            showAlert(response.data.message, 'danger');
+        }
+    } catch (error) {
+        console.error('添加资产失败:', error);
+        showAlert('添加资产失败！', 'danger');
+    }
+}
+
+// 编辑资产
+function editAsset(assetId) {
+    const asset = currentAssets.find(a => a.id === assetId);
+    if (asset) {
+        document.getElementById('editAssetId').value = asset.id;
+        document.getElementById('editAssetName').value = asset.name;
+        document.getElementById('editAssetType').value = asset.type;
+        document.getElementById('editAssetIp').value = asset.ip;
+        document.getElementById('editAssetPort').value = asset.port;
+        document.getElementById('editAssetUsername').value = asset.username || '';
+        document.getElementById('editAssetPassword').value = asset.password || '';
+        document.getElementById('editAssetDescription').value = asset.description || '';
+        
+        const modal = new bootstrap.Modal(document.getElementById('editAssetModal'));
+        modal.show();
+    }
+}
+
+// 更新资产
+async function updateAsset() {
+    const form = document.getElementById('editAssetForm');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData);
+    data.action = 'update';
+    
+    // 验证IP地址格式
+    if (!isValidIP(data.ip)) {
+        showAlert('请输入有效的IP地址格式！', 'danger');
+        return;
+    }
+    
+    try {
+        const response = await axios.put(`/api/assets/${data.id}`, data);
+        if (response.data.success) {
+            showAlert(response.data.message, 'success');
+            document.getElementById('editAssetModal').querySelector('.btn-close').click();
+            loadAssets();
+        } else {
+            showAlert(response.data.message, 'danger');
+        }
+    } catch (error) {
+        console.error('更新资产失败:', error);
+        showAlert('更新资产失败！', 'danger');
+    }
+}
+
+// 重启资产
+async function restartAsset(assetId) {
+    try {
+        const response = await axios.put(`/api/assets/${assetId}`, { action: 'restart' });
+        showAlert(response.data.message, 'success');
+        loadAssets();
+    } catch (error) {
+        console.error('重启资产失败:', error);
+        showAlert('重启资产失败！', 'danger');
+    }
+}
+
+// 关机资产
+async function shutdownAsset(assetId) {
+    try {
+        const response = await axios.put(`/api/assets/${assetId}`, { action: 'shutdown' });
+        showAlert(response.data.message, 'success');
+        loadAssets();
+    } catch (error) {
+        console.error('关机资产失败:', error);
+        showAlert('关机资产失败！', 'danger');
+    }
+}
+
+
+// 删除资产
+async function deleteAsset(assetId) {
+    if (confirm('确定要删除这个资产吗？')) {
+        try {
+            const response = await axios.delete(`/api/assets/${assetId}`);
+            showAlert(response.data.message, 'success');
+            loadAssets();
+        } catch (error) {
+            console.error('删除资产失败:', error);
+            showAlert('删除资产失败！', 'danger');
+        }
+    }
+}
+
+// IP地址格式验证
+function isValidIP(ip) {
+    const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    return ipRegex.test(ip);
+}
+
+// 显示提示信息
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.parentNode.removeChild(alertDiv);
+        }
+    }, 5000);
+}
+</script>
+
+<style>
+/* 下拉菜单样式 */
+.dropdown-menu {
+    background-color: #1a1a1a !important;
+    border: 1px solid #333 !important;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 212, 255, 0.1) !important;
+    border-radius: 8px !important;
+    padding: 6px 0 !important;
+    min-width: 130px !important;
+    width: 130px !important;
+    height: 90px !important;
+    z-index: 10000 !important;
+    position: fixed !important;
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    transition: opacity 0.2s ease, transform 0.2s ease !important;
+    transform: scale(0.9) !important;
+    will-change: opacity, transform !important;
+    contain: layout style paint !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    pointer-events: auto !important;
+}
+
+.dropdown-item {
+    color: #fff;
+    padding: 10px 18px;
+    font-size: 14px;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    position: relative;
+}
+
+.dropdown-item:hover {
+    background-color: rgba(0, 212, 255, 0.1);
+    color: #00d4ff;
+    transform: translateX(2px);
+}
+
+.dropdown-item.text-danger:hover {
+    background-color: rgba(220, 53, 69, 0.2);
+    color: #ff6b7a;
+    transform: translateX(2px);
+}
+
+.dropdown-item i {
+    margin-right: 8px;
+    width: 16px;
+    text-align: center;
+}
+
+/* 表格样式 */
+.table-responsive {
+    overflow-x: auto;
+    overflow-y: visible;
+}
+
+.table th, .table td {
+    white-space: nowrap;
+    padding: 12px 8px;
+}
+
+.table td:last-child {
+    overflow: visible;
+    position: relative;
+}
+
+/* 操作按钮组优化 */
+.btn-group .dropdown {
+    margin-left: 5px;
+}
+
+.btn-group .dropdown-toggle {
+    border-left: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* 终端样式 */
+#terminalOutput {
+    background-color: #000;
+    color: #0f0;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    height: 100%;
+    overflow-y: auto;
+    padding: 10px;
+    border: none;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+#terminalInput {
+    background-color: #000;
+    color: #0f0;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    border: 1px solid rgba(0, 212, 255, 0.3);
+}
+
+.prompt {
+    color: #00d4ff;
+}
+
+.cursor {
+    color: #0f0;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+/* 终端窗口调整大小 */
+#terminalResizeHandle::before {
+    content: '⋱';
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    font-size: 12px;
+    color: #00d4ff;
+}
+
+#terminalResizeHandle:hover {
+    background: rgba(0, 212, 255, 0.5);
+}
+</style>
+
+<!-- SSH终端模态框 -->
+<div class="modal fade" id="terminalModal" tabindex="-1">
+    <div class="modal-dialog" style="max-width: 90%; width: 800px; height: 600px; margin: 5vh auto; display: flex; flex-direction: column;">
+        <div class="modal-content" style="background: rgba(0, 0, 0, 0.9); border: 1px solid rgba(0, 212, 255, 0.3); flex: 1; display: flex; flex-direction: column; position: relative; min-height: 0;">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(0, 212, 255, 0.3); flex-shrink: 0;">
+                <h5 class="modal-title text-white">
+                    <i class="fas fa-terminal me-2" style="color: #00d4ff;"></i>
+                    <span id="terminalTitle">SSH终端</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="padding: 0; flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0;">
+                <div id="terminalOutput" contenteditable="true" style="outline: none; flex: 1; overflow: auto; min-height: 0;">SSH终端就绪...\n</div>
+            </div>
+            <!-- Resize handle -->
+            <div id="terminalResizeHandle" style="position: absolute; bottom: 0; right: 0; width: 20px; height: 20px; cursor: nw-resize; background: rgba(0, 212, 255, 0.3); border-radius: 0 0 5px 0;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentTerminalAssetId = null;
+let currentTerminalSessionId = null;
+
+let currentCommand = '';
+let cursorPosition = 0;
+
+async function openTerminal(assetId) {
+    const asset = currentAssets.find(a => a.id === assetId);
+    if (!asset) {
+        showAlert('资产不存在！', 'danger');
+        return;
+    }
+    
+    currentTerminalAssetId = assetId;
+    document.getElementById('terminalTitle').textContent = `SSH终端 - ${asset.name}`;
+    
+    const output = document.getElementById('terminalOutput');
+    output.innerHTML = '正在连接SSH服务器...<br>';
+    
+    const modal = new bootstrap.Modal(document.getElementById('terminalModal'));
+    modal.show();
+    
+    // 连接到SSH服务器
+    try {
+        const response = await axios.post(`/api/assets/${assetId}/terminal/connect`);
+        
+        if (response.data.success) {
+            currentTerminalSessionId = response.data.session_id;
+            // 保存初始消息为固定内容，光标由updatePrompt()管理
+            const initialMsg = 'SSH连接成功！<br>' + 
+                `欢迎连接到 ${asset.name} (${asset.ip})<br>` +
+                '输入命令后按回车执行...<br><br>' +
+                '<span id="terminal-prompt" class="prompt">[root@localhost ~]# </span>';
+            
+            output.innerHTML = initialMsg;
+            // 立即更新提示符以添加光标
+            setTimeout(() => updatePrompt(), 10);
+        } else {
+            output.innerHTML += `连接失败: ${response.data.error}<br>`;
+        }
+    } catch (error) {
+        output.innerHTML += `连接失败: ${error.message}<br>`;
+    }
+    
+    // 聚焦终端并设置事件监听
+    setTimeout(() => {
+        output.focus();
+        setupTerminalEvents();
+    }, 100);
+}
+
+function setupTerminalEvents() {
+    const output = document.getElementById('terminalOutput');
+    
+    // 防止重复绑定事件
+    if (output._keydownHandler) {
+        output.removeEventListener('keydown', output._keydownHandler);
+    }
+    
+    // 创建新的事件处理函数
+    output._keydownHandler = function(e) {
+        // 阻止所有默认行为，完全由我们的JavaScript控制
+        e.preventDefault();
+        
+        if (e.key === 'Enter') {
+            handleCommandInput();
+        } else if (e.key === 'Backspace') {
+            if (currentCommand.length > 0) {
+                currentCommand = currentCommand.slice(0, -1);
+                updatePrompt();
+            }
+        } else if (e.key.length === 1) {
+            currentCommand += e.key;
+            updatePrompt();
+        }
+    };
+    
+    // 添加事件监听
+    output.addEventListener('keydown', output._keydownHandler);
+}
+
+function updatePrompt() {
+    const output = document.getElementById('terminalOutput');
+    
+    // 尝试直接找到提示符元素
+    let promptElement = document.getElementById('terminal-prompt');
+    
+    if (promptElement) {
+        // 直接更新这个元素的内容，转义HTML特殊字符
+        const escapedCommand = currentCommand.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        promptElement.textContent = `[root@localhost ~]# ${escapedCommand}`;
+        
+        // 更新光标
+        let cursorElement = promptElement.nextElementSibling;
+        if (!cursorElement || !cursorElement.classList.contains('cursor')) {
+            // 如果光标不存在，创建它
+            cursorElement = document.createElement('span');
+            cursorElement.className = 'cursor';
+            cursorElement.textContent = '_';
+            promptElement.after(cursorElement);
+        }
+    } else {
+        // 如果没有找到，使用旧方法
+        const fullHTML = output.innerHTML;
+        const lines = fullHTML.split('<br>');
+        
+        // 找到最后一个包含提示符的行
+        let lastPromptIndex = -1;
+        for (let i = lines.length - 1; i >= 0; i--) {
+            if (lines[i].includes('[root@localhost ~]#')) {
+                lastPromptIndex = i;
+                break;
+            }
+        }
+        
+        if (lastPromptIndex === -1) {
+            // 没有找到提示符，添加新的
+            const escapedCommand = currentCommand.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            output.innerHTML += '<br><span id="terminal-prompt" class="prompt">[root@localhost ~]# ' + escapedCommand + '</span><span class="cursor">_</span>';
+        } else {
+            const escapedCommand = currentCommand.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const newPrompt = `<span id="terminal-prompt" class="prompt">[root@localhost ~]# ${escapedCommand}</span><span class="cursor">_</span>`;
+            lines[lastPromptIndex] = newPrompt;
+            output.innerHTML = lines.join('<br>');
+        }
+    }
+    
+    output.scrollTop = output.scrollHeight;
+}
+
+async function handleCommandInput() {
+    const output = document.getElementById('terminalOutput');
+    const command = currentCommand.trim();
+    
+    if (!command) {
+        // 空命令，不执行任何操作，保持当前状态
+        return;
+    }
+    
+    // 只移除最后一个提示符行（当前正在输入的行），保留历史命令和输出
+    let lines = output.innerHTML.split('<br>');
+    let filteredLines = [];
+    
+    // 从后往前查找，只移除最后一个提示符行
+    let foundLastPrompt = false;
+    for (let i = lines.length - 1; i >= 0; i--) {
+        if (!foundLastPrompt && lines[i].includes('[root@localhost ~]#') && lines[i].includes('id="terminal-prompt"')) {
+            foundLastPrompt = true;
+            // 跳过这一行（当前正在输入的提示符）
+        } else {
+            filteredLines.unshift(lines[i]);
+        }
+    }
+    
+    // 显示执行的命令
+    filteredLines.push(`<span class="prompt">[root@localhost ~]# </span>${command.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}`);
+    
+    // 更新输出
+    output.innerHTML = filteredLines.join('<br>') + '<br>';
+    
+    // 清空currentCommand
+    currentCommand = '';
+    
+    if (!currentTerminalAssetId || !currentTerminalSessionId) {
+        output.innerHTML += '未连接到SSH服务器<br>';
+        output.innerHTML += '<br><span id="terminal-prompt" class="prompt">[root@localhost ~]# </span>';
+        output.scrollTop = output.scrollHeight;
+        setTimeout(() => updatePrompt(), 10);
+        return;
+    }
+    
+    try {
+        const response = await axios.post(`/api/assets/${currentTerminalAssetId}/terminal`, {
+            session_id: currentTerminalSessionId,
+            command: command
+        });
+        
+        if (response.data.success) {
+            if (response.data.output) {
+                output.innerHTML += response.data.output.replace(/\n/g, '<br>');
+            }
+            if (response.data.error) {
+                output.innerHTML += response.data.error.replace(/\n/g, '<br>');
+            }
+        } else {
+            output.innerHTML += `错误: ${response.data.error}<br>`;
+        }
+    } catch (error) {
+        output.innerHTML += `命令执行失败: ${error.message}<br>`;
+    }
+    
+    // 添加新提示符（带ID，光标由updatePrompt()管理）
+    output.innerHTML += '<br><span id="terminal-prompt" class="prompt">[root@localhost ~]# </span>';
+    output.scrollTop = output.scrollHeight;
+    // 立即更新提示符以添加光标，并设置焦点
+    setTimeout(() => {
+        updatePrompt();
+        // 确保终端获得焦点
+        output.focus();
+    }, 10);
+}
+
+// 断开SSH会话
+async function disconnectTerminal() {
+    if (currentTerminalAssetId && currentTerminalSessionId) {
+        try {
+            await axios.post(`/api/assets/${currentTerminalAssetId}/terminal/disconnect`, {
+                session_id: currentTerminalSessionId
+            });
+        } catch (error) {
+            console.error('断开SSH会话失败:', error);
+        }
+    }
+    currentTerminalAssetId = null;
+    currentTerminalSessionId = null;
+}
+
+// 模态框关闭时断开SSH会话
+document.addEventListener('DOMContentLoaded', function() {
+    const terminalModal = document.getElementById('terminalModal');
+    if (terminalModal) {
+        terminalModal.addEventListener('hidden.bs.modal', function() {
+            disconnectTerminal();
+        });
+    }
+    
+    // 终端窗口调整大小功能
+    const resizeHandle = document.getElementById('terminalResizeHandle');
+    const modalDialog = document.querySelector('#terminalModal .modal-dialog');
+    
+    if (resizeHandle && modalDialog) {
+        let isResizing = false;
+        let startX, startY, startWidth, startHeight;
+        
+        resizeHandle.addEventListener('mousedown', function(e) {
+            isResizing = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            startWidth = parseInt(document.defaultView.getComputedStyle(modalDialog).width, 10);
+            startHeight = parseInt(document.defaultView.getComputedStyle(modalDialog).height, 10);
+            
+            e.preventDefault();
+        });
+        
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing) return;
+            
+            const width = startWidth + (e.clientX - startX);
+            const height = startHeight + (e.clientY - startY);
+            
+            // 设置最小尺寸
+            const minWidth = 400;
+            const minHeight = 300;
+            
+            if (width >= minWidth) {
+                modalDialog.style.width = width + 'px';
+            }
+            if (height >= minHeight) {
+                modalDialog.style.height = height + 'px';
+            }
+        });
+        
+        document.addEventListener('mouseup', function() {
+            isResizing = false;
+        });
+    }
+});
+</script>
+
+{% endblock %}

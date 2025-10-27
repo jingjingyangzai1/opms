@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+
+{% block title %}用户管理 - 运维管理系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="padding: 0; margin: 0;">
+    <div class="row" style="margin: 0;">
+        <!-- 侧边栏 -->
+        <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+            <div class="position-sticky pt-0">
+                <div class="text-center mb-1">
+                    <div style="font-size: 28px; color: #00d4ff; margin-bottom: 4px;">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h6 class="text-white" style="font-size: 1rem;">运维管理系统</h6>
+                </div>
+                
+                <!-- 导航菜单 -->
+                <ul class="nav flex-column" style="font-size: 1.1rem;">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('training_assets') }}">
+                            <i class="fas fa-database me-2"></i>训练系统资产
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('physical_servers') }}">
+                            <i class="fas fa-server me-2"></i>主控物理服务器
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('users') }}">
+                            <i class="fas fa-users me-2"></i>用户管理
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 主内容区域 -->
+        <main class="col-md-9 ms-sm-auto col-lg-10" style="padding: 0.5rem; margin: 0;">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-0 pb-0 mb-0 border-bottom" style="border-color: rgba(0, 212, 255, 0.3) !important; margin: 0;">
+                <h1 class="h2 text-white" style="margin-top: 0; margin-bottom: 0; font-size: 2rem;">
+                    <i class="fas fa-users me-2" style="color: #00d4ff;"></i>用户管理
+                </h1>
+                <div class="btn-toolbar mb-0 mb-md-0">
+                    <div class="btn-group me-2">
+                        <button type="button" class="btn tech-btn" onclick="showAddUserModal()">
+                            <i class="fas fa-plus me-1"></i>添加用户
+                        </button>
+                        <span class="text-white me-2 ms-2" style="font-size: 1.1rem;">欢迎, {{ current_user.name }}</span>
+                        <a href="{{ url_for('logout') }}" class="btn btn-outline-danger">
+                            <i class="fas fa-sign-out-alt me-1"></i>退出
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 用户列表 -->
+            <div class="card bg-dark text-white" style="margin-top: 0;">
+                <div class="card-body" style="padding: 0.5rem;">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-striped table-hover" style="font-size: 1.1rem;">
+                            <thead>
+                                <tr>
+                                    <th style="font-size: 1.2rem;">ID</th>
+                                    <th style="font-size: 1.2rem;">用户名</th>
+                                    <th style="font-size: 1.2rem;">邮箱</th>
+                                    <th style="font-size: 1.2rem;">创建时间</th>
+                                    <th style="font-size: 1.2rem;">状态</th>
+                                    <th style="font-size: 1.2rem;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                                <!-- 用户数据将通过JavaScript动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- 添加用户模态框 -->
+<div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white" style="font-size: 1.1rem;">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addUserModalLabel" style="font-size: 1.3rem;">
+                    <i class="fas fa-user-plus me-2"></i>添加用户
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addUserForm">
+                    <div class="mb-3">
+                        <label for="addUsername" class="form-label">用户名 *</label>
+                        <input type="text" class="form-control bg-dark text-white" id="addUsername" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="addPassword" class="form-label">密码 *</label>
+                        <input type="password" class="form-control bg-dark text-white" id="addPassword" required>
+                        <div class="form-text text-muted">密码长度至少6位</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="addEmail" class="form-label">邮箱</label>
+                        <input type="email" class="form-control bg-dark text-white" id="addEmail">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="addUser()">添加用户</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑用户模态框 -->
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white" style="font-size: 1.1rem;">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editUserModalLabel" style="font-size: 1.3rem;">
+                    <i class="fas fa-user-edit me-2"></i>编辑用户
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editUserForm">
+                    <input type="hidden" id="editUserId">
+                    <div class="mb-3">
+                        <label for="editUsername" class="form-label">用户名</label>
+                        <input type="text" class="form-control bg-dark text-white" id="editUsername" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editPassword" class="form-label">新密码</label>
+                        <input type="password" class="form-control bg-dark text-white" id="editPassword">
+                        <div class="form-text text-muted">留空表示不修改密码，密码长度至少6位</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editEmail" class="form-label">邮箱</label>
+                        <input type="email" class="form-control bg-dark text-white" id="editEmail">
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="editIsActive">
+                            <label class="form-check-label" for="editIsActive">
+                                启用账户
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="updateUser()">保存修改</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 页面加载完成后获取用户列表
+document.addEventListener('DOMContentLoaded', function() {
+    loadUsers();
+});
+
+// 加载用户列表
+function loadUsers() {
+    fetch('/api/users')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateUsersTable(data.data);
+            } else {
+                showAlert('获取用户列表失败：' + data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('获取用户列表失败：' + error.message, 'danger');
+        });
+}
+
+// 更新用户表格
+function updateUsersTable(users) {
+    const tbody = document.getElementById('usersTableBody');
+    tbody.innerHTML = '';
+    
+    users.forEach(user => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${user.id}</td>
+            <td>${user.username}</td>
+            <td>${user.email || '-'}</td>
+            <td>${user.created_at}</td>
+            <td>
+                <span class="badge ${user.is_active ? 'bg-success' : 'bg-secondary'}">
+                    ${user.is_active ? '启用' : '禁用'}
+                </span>
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="editUser(${user.id})" title="编辑">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${user.id}, '${user.username}')" title="删除">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// 显示添加用户模态框
+function showAddUserModal() {
+    document.getElementById('addUserForm').reset();
+    new bootstrap.Modal(document.getElementById('addUserModal')).show();
+}
+
+// 添加用户
+function addUser() {
+    const username = document.getElementById('addUsername').value.trim();
+    const password = document.getElementById('addPassword').value.trim();
+    const email = document.getElementById('addEmail').value.trim();
+    
+    if (!username || !password) {
+        showAlert('用户名和密码不能为空！', 'warning');
+        return;
+    }
+    
+    if (password.length < 6) {
+        showAlert('密码长度至少6位！', 'warning');
+        return;
+    }
+    
+    const userData = {
+        username: username,
+        password: password,
+        email: email
+    };
+    
+    fetch('/api/users', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('addUserModal')).hide();
+            loadUsers();
+        } else {
+            showAlert(data.message, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('添加用户失败：' + error.message, 'danger');
+    });
+}
+
+// 编辑用户
+function editUser(userId) {
+    fetch('/api/users')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const user = data.data.find(u => u.id === userId);
+                if (user) {
+                    document.getElementById('editUserId').value = user.id;
+                    document.getElementById('editUsername').value = user.username;
+                    document.getElementById('editEmail').value = user.email || '';
+                    document.getElementById('editIsActive').checked = user.is_active;
+                    document.getElementById('editPassword').value = '';
+                    
+                    new bootstrap.Modal(document.getElementById('editUserModal')).show();
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('获取用户信息失败：' + error.message, 'danger');
+        });
+}
+
+// 更新用户
+function updateUser() {
+    const userId = document.getElementById('editUserId').value;
+    const password = document.getElementById('editPassword').value.trim();
+    const email = document.getElementById('editEmail').value.trim();
+    const isActive = document.getElementById('editIsActive').checked;
+    
+    if (password && password.length < 6) {
+        showAlert('密码长度至少6位！', 'warning');
+        return;
+    }
+    
+    const userData = {
+        id: parseInt(userId),
+        password: password,
+        email: email,
+        is_active: isActive
+    };
+    
+    fetch('/api/users', {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+            loadUsers();
+        } else {
+            showAlert(data.message, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('更新用户失败：' + error.message, 'danger');
+    });
+}
+
+// 删除用户
+function deleteUser(userId, username) {
+    if (confirm(`确定要删除用户 "${username}" 吗？此操作不可恢复！`)) {
+        fetch(`/api/users?id=${userId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert(data.message, 'success');
+                loadUsers();
+            } else {
+                showAlert(data.message, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('删除用户失败：' + error.message, 'danger');
+        });
+    }
+}
+
+// 显示提示信息
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    // 3秒后自动移除
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.parentNode.removeChild(alertDiv);
+        }
+    }, 3000);
+}
+</script>
+{% endblock %}
