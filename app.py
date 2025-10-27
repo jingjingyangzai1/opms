@@ -692,6 +692,240 @@ def ssh_terminal_tab(asset_id):
         logger.error(f"Tab补全错误: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+# SFTP 文件上传下载相关路由
+@app.route('/api/assets/<int:asset_id>/sftp/list', methods=['POST'])
+@login_required
+def sftp_list(asset_id):
+    """获取远程目录文件列表"""
+    try:
+        asset = Asset.query.get_or_404(asset_id)
+        data = request.get_json()
+        remote_path = data.get('path', '~')
+        
+        if not asset.username or not asset.password:
+            return jsonify({'success': False, 'error': '缺少SSH凭据'}), 400
+        
+        # 创建SSH连接
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        
+        try:
+            ssh.connect(
+                hostname=asset.ip_address,
+                port=asset.port,
+                username=asset.username,
+                password=asset.password,
+                timeout=5  # 缩短超时时间
+            )
+        except Exception as e:
+            logger.error(f"SSH连接失败: {e}")
+            return jsonify({'success': False, 'error': f'SSH连接失败: {str(e)}'}), 500
+        
+        sftp = ssh.open_sftp()
+        
+        try:
+            # 如果是 ~ 开头的路径，需要解析为绝对路径
+            if remote_path.startswith('~'):
+                stdin, stdout, stderr = ssh.exec_command('pwd')
+                stdout.channel.recv_exit_status()
+                pwd = stdout.read().decode().strip()
+                # 移除末尾的换行符
+                pwd = pwd.rstrip()
+                if remote_path == '~':
+                    remote_path = pwd
+                else:
+                    remote_path = remote_path.replace('~', pwd)
+            
+            files = []
+            attrs = sftp.listdir_attr(remote_path)
+            for attr in attrs:
+                file_info = {
+                    'name': attr.filename,
+                    'is_dir': attr.st_mode & 0o40000 != 0,
+                    'size': attr.st_size,
+                    'mode': oct(attr.st_mode),
+                    'uid': attr.st_uid,
+                    'gid': attr.st_gid,
+                    'mtime': attr.st_mtime
+                }
+                files.append(file_info)
+            
+            result = {
+                'success': True,
+                'files': files,
+                'current_path': remote_path
+            }
+        except PermissionError:
+            result = {
+                'success': False,
+                'error': f'权限不足，无法访问目录: {remote_path}'
+            }
+        except FileNotFoundError:
+            result = {
+                'success': False,
+                'error': f'目录不存在: {remote_path}'
+            }
+        finally:
+            sftp.close()
+            ssh.close()
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"SFTP列表错误: {e}")
+        return jsonify({'success': False, 'error': f'操作失败: {str(e)}'}), 500
+
+@app.route('/api/assets/<int:asset_id>/sftp/download', methods=['POST'])
+@login_required
+def sftp_download(asset_id):
+    """从远程服务器下载文件"""
+    try:
+        asset = Asset.query.get_or_404(asset_id)
+        data = request.get_json()
+        remote_path = data.get('path')
+        
+        if not remote_path:
+            return jsonify({'success': False, 'error': '缺少文件路径'}), 400
+        
+        if not asset.username or not asset.password:
+            return jsonify({'success': False, 'error': '缺少SSH凭据'}), 400
+        
+        # 创建SFTP连接
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        
+        try:
+            ssh.connect(
+                hostname=asset.ip_address,
+                port=asset.port,
+                username=asset.username,
+                password=asset.password,
+                timeout=5  # 缩短超时时间
+            )
+        except Exception as e:
+            logger.error(f"SSH连接失败: {e}")
+            return jsonify({'success': False, 'error': f'SSH连接失败: {str(e)}'}), 500
+        
+        sftp = ssh.open_sftp()
+        
+        try:
+            # 处理路径：如果是 ~ 开头的路径，需要解析为绝对路径
+            if remote_path.startswith('~'):
+                stdin, stdout, stderr = ssh.exec_command('pwd')
+                stdout.channel.recv_exit_status()
+                pwd = stdout.read().decode().strip()
+                pwd = pwd.rstrip()
+                if remote_path == '~' or not remote_path.startswith('~/'):
+                    remote_path = pwd
+                else:
+                    remote_path = remote_path.replace('~', pwd)
+            
+            # 读取远程文件内容
+            file_obj = sftp.open(remote_path, 'rb')
+            file_content = file_obj.read()
+            file_obj.close()
+            
+            # 将文件内容转换为base64
+            import base64
+            file_b64 = base64.b64encode(file_content).decode('utf-8')
+            
+            import os
+            filename = os.path.basename(remote_path)
+            
+            result = {
+                'success': True,
+                'filename': filename,
+                'data': file_b64
+            }
+        finally:
+            sftp.close()
+            ssh.close()
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"SFTP下载错误: {e}")
+        return jsonify({'success': False, 'error': f'下载失败: {str(e)}'}), 500
+
+@app.route('/api/assets/<int:asset_id>/sftp/upload', methods=['POST'])
+@login_required
+def sftp_upload(asset_id):
+    """上传文件到远程服务器"""
+    try:
+        asset = Asset.query.get_or_404(asset_id)
+        data = request.get_json()
+        remote_path = data.get('path')
+        file_data = data.get('data')  # base64编码的文件内容
+        filename = data.get('filename')
+        
+        if not remote_path or not file_data or not filename:
+            return jsonify({'success': False, 'error': '缺少必要参数'}), 400
+        
+        if not asset.username or not asset.password:
+            return jsonify({'success': False, 'error': '缺少SSH凭据'}), 400
+        
+        # 创建SFTP连接
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        
+        try:
+            ssh.connect(
+                hostname=asset.ip_address,
+                port=asset.port,
+                username=asset.username,
+                password=asset.password,
+                timeout=5  # 缩短超时时间
+            )
+        except Exception as e:
+            logger.error(f"SSH连接失败: {e}")
+            return jsonify({'success': False, 'error': f'SSH连接失败: {str(e)}'}), 500
+        
+        sftp = ssh.open_sftp()
+        
+        try:
+            import base64
+            # 解码base64文件内容
+            file_content = base64.b64decode(file_data)
+            
+            # 处理路径：如果是 ~ 开头的路径，需要解析为绝对路径
+            if remote_path.startswith('~'):
+                stdin, stdout, stderr = ssh.exec_command('pwd')
+                stdout.channel.recv_exit_status()
+                pwd = stdout.read().decode().strip()
+                pwd = pwd.rstrip()
+                if remote_path == '~':
+                    remote_path = pwd
+                else:
+                    remote_path = remote_path.replace('~', pwd)
+            
+            # 如果是目录，添加文件名
+            if remote_path.endswith('/'):
+                full_path = remote_path + filename
+            else:
+                full_path = remote_path + '/' + filename
+            
+            logger.info(f"准备上传文件到: {full_path}")
+            
+            # 写入远程文件
+            file_obj = sftp.open(full_path, 'wb')
+            file_obj.write(file_content)
+            file_obj.close()
+            
+            result = {
+                'success': True,
+                'message': f'文件 {filename} 上传成功',
+                'path': full_path
+            }
+        finally:
+            sftp.close()
+            ssh.close()
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"SFTP上传错误: {e}")
+        return jsonify({'success': False, 'error': f'上传失败: {str(e)}'}), 500
+
 @app.route('/api/assets/<int:asset_id>', methods=['PUT', 'DELETE'])
 @login_required
 def api_asset_detail(asset_id):

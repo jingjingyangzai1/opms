@@ -427,6 +427,9 @@ function updateServersTable() {
                             <button class="btn btn-info" onclick="openTerminal(${server.id})" title="SSH终端">
                                 <i class="fas fa-terminal"></i>
                             </button>
+                            <button class="btn btn-primary" onclick="openFileManager(${server.id})" title="文件管理">
+                                <i class="fas fa-file"></i>
+                            </button>
                             <div class="btn-group">
                                 <button type="button" class="btn btn-secondary" onclick="toggleDropdown(${server.id})" title="更多操作">
                                     <i class="fas fa-ellipsis-v"></i>
@@ -1027,6 +1030,331 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+</script>
+
+<!-- SFTP文件管理器模态框 -->
+<div class="modal fade" id="fileManagerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="background: rgba(0, 0, 0, 0.9); border: 1px solid rgba(0, 212, 255, 0.3);">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(0, 212, 255, 0.3);">
+                <h5 class="modal-title text-white">
+                    <i class="fas fa-folder me-2" style="color: #00d4ff;"></i>
+                    <span id="fileManagerTitle">文件管理器</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="max-height: 500px; overflow-y: auto;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <button class="btn btn-sm btn-secondary" onclick="refreshFileList()">
+                        <i class="fas fa-sync me-1"></i>刷新
+                    </button>
+                    <input type="file" id="fileUploadInput" style="display: none;" onchange="handleFileUpload()">
+                    <button class="btn btn-sm btn-primary" onclick="document.getElementById('fileUploadInput').click()">
+                        <i class="fas fa-upload me-1"></i>上传文件
+                    </button>
+                </div>
+                <div class="mb-2 d-flex align-items-center">
+                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="goToParentDirectory()" title="返回上级目录">
+                        <i class="fas fa-arrow-up"></i> 返回上级
+                    </button>
+                    <span id="currentPath" class="text-white-50" style="font-family: monospace;">~</span>
+                </div>
+                <div id="fileList" class="list-group" style="background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 5px;">
+                    <!-- 文件列表将通过JavaScript动态加载 -->
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid rgba(0, 212, 255, 0.3);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentFileManagerAssetId = null;
+let currentFilePath = '~';
+
+async function openFileManager(assetId) {
+    const server = currentServers.find(a => a.id === assetId);
+    if (!server) {
+        showAlert('服务器不存在！', 'danger');
+        return;
+    }
+    
+    currentFileManagerAssetId = assetId;
+    currentFilePath = '~';
+    document.getElementById('fileManagerTitle').textContent = `文件管理器 - ${server.name}`;
+    
+    const modal = new bootstrap.Modal(document.getElementById('fileManagerModal'));
+    modal.show();
+    
+    // 加载文件列表
+    await loadFileList();
+    
+    // 更新按钮状态
+    updateParentDirectoryButton();
+}
+
+async function loadFileList() {
+    if (!currentFileManagerAssetId) {
+        return;
+    }
+    
+    const fileListDiv = document.getElementById('fileList');
+    fileListDiv.innerHTML = '<div class="text-center text-white-50 p-3"><i class="fas fa-spinner fa-spin"></i> 加载中...</div>';
+    
+    try {
+        const response = await axios.post(`/api/assets/${currentFileManagerAssetId}/sftp/list`, {
+            path: currentFilePath
+        });
+        
+        if (response.data.success) {
+            const files = response.data.files;
+            fileListDiv.innerHTML = '';
+            
+            if (files.length === 0) {
+                fileListDiv.innerHTML = '<div class="text-center text-white-50 p-3">目录为空</div>';
+            } else {
+                // 先显示目录，再显示文件
+                const dirs = files.filter(f => f.is_dir).sort((a, b) => a.name.localeCompare(b.name));
+                const regularFiles = files.filter(f => !f.is_dir).sort((a, b) => a.name.localeCompare(b.name));
+                
+                dirs.forEach(file => {
+                    const item = document.createElement('div');
+                    item.className = 'list-group-item';
+                    item.style.cssText = 'background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); cursor: pointer;';
+                    item.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-folder text-warning me-2"></i>
+                                <span class="text-white">${file.name}</span>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="navigateToDirectory('${escapePath(file.name)}')">
+                                <i class="fas fa-folder-open"></i> 打开
+                            </button>
+                        </div>
+                    `;
+                    fileListDiv.appendChild(item);
+                });
+                
+                regularFiles.forEach(file => {
+                    const item = document.createElement('div');
+                    item.className = 'list-group-item';
+                    item.style.cssText = 'background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);';
+                    item.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="fas fa-file text-info me-2"></i>
+                                <span class="text-white">${file.name}</span>
+                                <small class="text-white-50 ms-2">(${formatFileSize(file.size)})</small>
+                            </div>
+                            <button class="btn btn-sm btn-outline-success" onclick="downloadFile('${escapePath(file.name)}')">
+                                <i class="fas fa-download"></i> 下载
+                            </button>
+                        </div>
+                    `;
+                    fileListDiv.appendChild(item);
+                });
+            }
+            
+            // 更新当前路径显示
+            document.getElementById('currentPath').textContent = currentFilePath;
+            
+            // 更新返回上级按钮的启用状态
+            updateParentDirectoryButton();
+        } else {
+            showAlert(`加载文件列表失败: ${response.data.error}`, 'danger');
+            fileListDiv.innerHTML = '<div class="text-center text-danger p-3">加载失败</div>';
+        }
+    } catch (error) {
+        console.error('加载文件列表失败:', error);
+        showAlert('加载文件列表失败！', 'danger');
+        fileListDiv.innerHTML = '<div class="text-center text-danger p-3">加载失败</div>';
+    }
+}
+
+async function refreshFileList() {
+    await loadFileList();
+}
+
+async function navigateToDirectory(dirName) {
+    // 更新当前路径
+    if (currentFilePath === '~' || currentFilePath.endsWith('~/')) {
+        currentFilePath = '~/' + dirName;
+    } else if (currentFilePath === '/') {
+        currentFilePath = '/' + dirName;
+    } else {
+        currentFilePath += '/' + dirName;
+    }
+    
+    await loadFileList();
+    updateParentDirectoryButton();
+}
+
+async function goToParentDirectory() {
+    // 如果已经在根目录，不执行任何操作
+    if (currentFilePath === '~' || currentFilePath === '/' || currentFilePath === '~/') {
+        return;
+    }
+    
+    // 处理以 ~ 开头的路径
+    if (currentFilePath.startsWith('~/')) {
+        const pathParts = currentFilePath.split('/');
+        if (pathParts.length > 2) {
+            // 移除最后一个目录
+            pathParts.pop();
+            if (pathParts.length === 1 && pathParts[0] === '~') {
+                currentFilePath = '~';
+            } else {
+                currentFilePath = pathParts.join('/');
+            }
+        } else {
+            currentFilePath = '~';
+        }
+    } else if (currentFilePath.startsWith('/')) {
+        // 处理绝对路径
+        const pathParts = currentFilePath.split('/').filter(p => p);
+        if (pathParts.length > 0) {
+            pathParts.pop();
+            currentFilePath = '/' + pathParts.join('/');
+        } else {
+            currentFilePath = '/';
+        }
+    }
+    
+    await loadFileList();
+    updateParentDirectoryButton();
+}
+
+async function downloadFile(filename) {
+    if (!currentFileManagerAssetId) {
+        return;
+    }
+    
+    // 构建完整路径
+    let fullPath;
+    if (currentFilePath === '/' || currentFilePath === '~') {
+        fullPath = currentFilePath + filename;
+    } else {
+        fullPath = currentFilePath + '/' + filename;
+    }
+    
+    try {
+        showAlert('正在下载文件...', 'info');
+        
+        const response = await axios.post(`/api/assets/${currentFileManagerAssetId}/sftp/download`, {
+            path: fullPath
+        });
+        
+        if (response.data.success) {
+            // 将base64数据转换为blob并下载
+            const data = atob(response.data.data);
+            const bytes = new Uint8Array(data.length);
+            for (let i = 0; i < data.length; i++) {
+                bytes[i] = data.charCodeAt(i);
+            }
+            const blob = new Blob([bytes]);
+            
+            // 创建下载链接
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = response.data.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showAlert('文件下载成功！', 'success');
+        } else {
+            showAlert(`下载失败: ${response.data.error}`, 'danger');
+        }
+    } catch (error) {
+        console.error('下载文件失败:', error);
+        showAlert('下载文件失败！', 'danger');
+    }
+}
+
+function handleFileUpload() {
+    const input = document.getElementById('fileUploadInput');
+    const file = input.files[0];
+    
+    if (!file) {
+        return;
+    }
+    
+    if (!currentFileManagerAssetId) {
+        return;
+    }
+    
+    // 读取文件内容
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            // 将文件内容转换为base64（改进的方式，避免栈溢出）
+            const arrayBuffer = e.target.result;
+            const uint8Array = new Uint8Array(arrayBuffer);
+            let binaryString = '';
+            const chunkSize = 8192; // 分块处理
+            
+            for (let i = 0; i < uint8Array.length; i += chunkSize) {
+                const chunk = uint8Array.subarray(i, i + chunkSize);
+                binaryString += String.fromCharCode.apply(null, chunk);
+            }
+            
+            const base64Data = btoa(binaryString);
+            
+            showAlert('正在上传文件...', 'info');
+            
+            const response = await axios.post(`/api/assets/${currentFileManagerAssetId}/sftp/upload`, {
+                path: currentFilePath,
+                filename: file.name,
+                data: base64Data
+            });
+            
+            if (response.data.success) {
+                showAlert(response.data.message, 'success');
+                input.value = '';
+                await loadFileList(); // 刷新文件列表
+            } else {
+                showAlert(`上传失败: ${response.data.error}`, 'danger');
+            }
+        } catch (error) {
+            console.error('上传文件失败:', error);
+            showAlert('上传文件失败！', 'danger');
+        }
+    };
+    
+    reader.readAsArrayBuffer(file);
+}
+
+function escapePath(path) {
+    return path.replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+function updateParentDirectoryButton() {
+    const buttons = document.querySelectorAll('.btn-outline-secondary');
+    const isRoot = currentFilePath === '~' || currentFilePath === '/' || currentFilePath === '~/';
+    buttons.forEach(btn => {
+        if (btn.textContent.includes('返回上级')) {
+            if (isRoot) {
+                btn.disabled = true;
+                btn.style.opacity = '0.5';
+            } else {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            }
+        }
+    });
+}
 </script>
 
 {% endblock %}
