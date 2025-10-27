@@ -224,21 +224,6 @@ let currentServers = [];
 // 全局变量存储当前打开的下拉菜单
 let currentDropdown = null;
 
-// 辅助函数：设置跨浏览器的 CSS 属性
-function setCSSProperty(element, property, value) {
-    const prefixes = ['webkit', 'moz', 'ms', ''];
-    prefixes.forEach(prefix => {
-        const camelCase = prefix.charAt(0).toUpperCase() + prefix.slice(1);
-        const prefixedProp = property.charAt(0).toUpperCase() + property.slice(1);
-        const propName = prefix ? `${camelCase}${prefixedProp}` : property;
-        try {
-            element.style[propName] = value;
-        } catch (e) {
-            // 忽略不支持的特性
-        }
-    });
-}
-
 // 切换下拉菜单显示/隐藏
 function toggleDropdown(assetId) {
     console.log('toggleDropdown called with assetId:', assetId);
@@ -325,8 +310,8 @@ function showDropdown(assetId) {
     menu.style.display = 'block';
     menu.style.visibility = 'visible';
     menu.style.opacity = '0';
-    setCSSProperty(menu, 'transform', 'scale(0.9)');
-    setCSSProperty(menu, 'transition', 'opacity 0.2s ease, transform 0.2s ease');
+    menu.style.transform = 'scale(0.9)';
+    menu.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
     menu.style.pointerEvents = 'auto';
     
     console.log('Menu styles applied, triggering animation');
@@ -334,7 +319,7 @@ function showDropdown(assetId) {
     // 触发动画
     requestAnimationFrame(() => {
         menu.style.opacity = '1';
-        setCSSProperty(menu, 'transform', 'scale(1)');
+        menu.style.transform = 'scale(1)';
         console.log('Animation triggered');
     });
     
@@ -348,8 +333,8 @@ function closeDropdown(assetId) {
     const menu = document.getElementById(`dropdown-${assetId}`);
     if (menu) {
         menu.style.opacity = '0';
-        setCSSProperty(menu, 'transform', 'scale(0.9)');
-        setCSSProperty(menu, 'transition', 'opacity 0.15s ease, transform 0.15s ease');
+        menu.style.transform = 'scale(0.9)';
+        menu.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
         
         // 延迟隐藏
         setTimeout(() => {
@@ -368,8 +353,8 @@ function closeAllDropdowns() {
     document.querySelectorAll('.dropdown-menu').forEach(menu => {
         if (menu.style.display !== 'none') {
             menu.style.opacity = '0';
-            setCSSProperty(menu, 'transform', 'scale(0.9)');
-            setCSSProperty(menu, 'transition', 'opacity 0.15s ease, transform 0.15s ease');
+            menu.style.transform = 'scale(0.9)';
+            menu.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
             
             setTimeout(() => {
                 menu.style.display = 'none';
@@ -447,7 +432,7 @@ function updateServersTable() {
                                 <i class="fas fa-file"></i>
                             </button>
                             <div class="btn-group dropdown">
-                                <button type="button" class="btn btn-secondary dropdown-toggle-btn" id="dropdown-btn-${server.id}" onclick="toggleDropdown(${server.id})" title="更多操作">
+                                <button type="button" class="btn btn-secondary dropdown-toggle" onclick="toggleDropdown(${server.id}); return false;" title="更多操作" id="dropdown-btn-${server.id}">
                                     <i class="fas fa-ellipsis-v"></i>
                                 </button>
                                 <ul class="dropdown-menu" id="dropdown-${server.id}" role="menu">
@@ -623,16 +608,6 @@ function showAlert(message, type) {
 
 <style>
 /* 下拉菜单样式 */
-/* 确保下拉按钮可点击 */
-.dropdown-toggle-btn {
-    pointer-events: auto !important;
-    cursor: pointer !important;
-    user-select: none !important;
-    -webkit-user-select: none !important;
-    -moz-user-select: none !important;
-    -ms-user-select: none !important;
-}
-
 .dropdown-menu {
     background-color: #1a1a1a !important;
     border: 1px solid #333 !important;
@@ -647,19 +622,12 @@ function showAlert(message, type) {
     display: none !important;
     visibility: hidden !important;
     opacity: 0 !important;
-    -webkit-transition: opacity 0.2s ease, -webkit-transform 0.2s ease !important;
-    -moz-transition: opacity 0.2s ease, -moz-transform 0.2s ease !important;
-    -ms-transition: opacity 0.2s ease, -ms-transform 0.2s ease !important;
     transition: opacity 0.2s ease, transform 0.2s ease !important;
-    -webkit-transform: scale(0.9) !important;
-    -moz-transform: scale(0.9) !important;
-    -ms-transform: scale(0.9) !important;
     transform: scale(0.9) !important;
     will-change: opacity, transform !important;
-    -webkit-backdrop-filter: blur(10px) !important;
-    -moz-backdrop-filter: blur(10px) !important;
-    -ms-backdrop-filter: blur(10px) !important;
+    contain: layout style paint !important;
     backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
     pointer-events: auto !important;
 }
 
@@ -668,11 +636,7 @@ function showAlert(message, type) {
     padding: 10px 18px;
     font-size: 14px;
     white-space: nowrap;
-    display: -webkit-flex;
-    display: -ms-flexbox;
     display: flex;
-    -webkit-align-items: center;
-    -ms-flex-align: center;
     align-items: center;
     text-decoration: none;
     border: none;
@@ -687,18 +651,12 @@ function showAlert(message, type) {
 .dropdown-item:hover {
     background-color: rgba(0, 212, 255, 0.1);
     color: #00d4ff;
-    -webkit-transform: translateX(2px);
-    -moz-transform: translateX(2px);
-    -ms-transform: translateX(2px);
     transform: translateX(2px);
 }
 
 .dropdown-item.text-danger:hover {
     background-color: rgba(220, 53, 69, 0.2);
     color: #ff6b7a;
-    -webkit-transform: translateX(2px);
-    -moz-transform: translateX(2px);
-    -ms-transform: translateX(2px);
     transform: translateX(2px);
 }
 
@@ -731,6 +689,34 @@ function showAlert(message, type) {
 
 .btn-group .dropdown-toggle {
     border-left: 1px solid rgba(255, 255, 255, 0.2);
+    cursor: pointer !important;
+    pointer-events: auto !important;
+    position: relative !important;
+    z-index: 10 !important;
+    min-width: 40px !important;
+    min-height: 38px !important;
+}
+
+.btn-group .dropdown-toggle:hover {
+    background-color: #5a6268 !important;
+}
+
+.btn-group .dropdown-toggle:active {
+    background-color: #545b62 !important;
+}
+
+.btn-group .dropdown-toggle:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* 下拉图标旋转动画 */
+[id^="dropdown-icon-"] {
+    -webkit-transition: -webkit-transform 0.2s ease !important;
+    -moz-transition: -moz-transform 0.2s ease !important;
+    -ms-transition: -ms-transform 0.2s ease !important;
+    -o-transition: -o-transform 0.2s ease !important;
+    transition: transform 0.2s ease !important;
 }
 
 /* 终端样式 */
@@ -788,17 +774,17 @@ function showAlert(message, type) {
 
 <!-- SSH终端模态框 -->
 <div class="modal fade" id="terminalModal" tabindex="-1">
-    <div class="modal-dialog" style="max-width: 90%; width: 800px; height: 600px; margin: 5vh auto; display: -webkit-flex; display: -ms-flexbox; display: flex; -webkit-flex-direction: column; -ms-flex-direction: column; flex-direction: column;">
-        <div class="modal-content" style="background: rgba(0, 0, 0, 0.9); border: 1px solid rgba(0, 212, 255, 0.3); -webkit-flex: 1; -ms-flex: 1; flex: 1; display: -webkit-flex; display: -ms-flexbox; display: flex; -webkit-flex-direction: column; -ms-flex-direction: column; flex-direction: column; position: relative; min-height: 0;">
-            <div class="modal-header" style="border-bottom: 1px solid rgba(0, 212, 255, 0.3); -webkit-flex-shrink: 0; -ms-flex-negative: 0; flex-shrink: 0;">
+    <div class="modal-dialog" style="max-width: 90%; width: 800px; height: 600px; margin: 5vh auto; display: flex; flex-direction: column;">
+        <div class="modal-content" style="background: rgba(0, 0, 0, 0.9); border: 1px solid rgba(0, 212, 255, 0.3); flex: 1; display: flex; flex-direction: column; position: relative; min-height: 0;">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(0, 212, 255, 0.3); flex-shrink: 0;">
                 <h5 class="modal-title text-white">
                     <i class="fas fa-terminal me-2" style="color: #00d4ff;"></i>
                     <span id="terminalTitle">SSH终端</span>
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" style="padding: 0; -webkit-flex: 1; -ms-flex: 1; flex: 1; overflow: hidden; display: -webkit-flex; display: -ms-flexbox; display: flex; -webkit-flex-direction: column; -ms-flex-direction: column; flex-direction: column; min-height: 0;">
-                <div id="terminalOutput" contenteditable="true" style="outline: none; -webkit-flex: 1; -ms-flex: 1; flex: 1; overflow: auto; min-height: 0;">SSH终端就绪...\n</div>
+            <div class="modal-body" style="padding: 0; flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0;">
+                <div id="terminalOutput" contenteditable="true" style="outline: none; flex: 1; overflow: auto; min-height: 0;">SSH终端就绪...\n</div>
             </div>
             <!-- Resize handle -->
             <div id="terminalResizeHandle" style="position: absolute; bottom: 0; right: 0; width: 20px; height: 20px; cursor: nw-resize; background: rgba(0, 212, 255, 0.3); border-radius: 0 0 5px 0;"></div>
