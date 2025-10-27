@@ -815,12 +815,48 @@ def sftp_download(asset_id):
                 stdout.channel.recv_exit_status()
                 pwd = stdout.read().decode().strip()
                 pwd = pwd.rstrip()
-                if remote_path == '~' or not remote_path.startswith('~/'):
-                    remote_path = pwd
+                if remote_path == '~':
+                    # 如果路径是 ~，这不是一个有效的文件路径
+                    return jsonify({'success': False, 'error': '无效的文件路径'}), 400
+                elif remote_path.startswith('~/'):
+                    # ~/filename -> /home/user/filename (确保没有双斜杠)
+                    filename_part = remote_path[2:]  # 去掉 '~/'
+                    if filename_part:
+                        remote_path = pwd + '/' + filename_part
+                    else:
+                        remote_path = pwd
                 else:
+                    # 其他情况，直接替换 ~
                     remote_path = remote_path.replace('~', pwd)
+            elif remote_path.startswith('/'):
+                # 绝对路径，直接使用
+                pass
+            else:
+                # 相对路径，需要结合当前目录
+                stdin, stdout, stderr = ssh.exec_command('pwd')
+                stdout.channel.recv_exit_status()
+                pwd = stdout.read().decode().strip()
+                remote_path = pwd + '/' + remote_path
+            
+            logger.info(f"解析后的文件路径: {remote_path}")
+            
+            # 检查文件是否存在且是文件（不是目录）
+            try:
+                file_stat = sftp.stat(remote_path)
+                import stat
+                logger.info(f"文件状态: mode={oct(file_stat.st_mode)}, size={file_stat.st_size}")
+                if stat.S_ISDIR(file_stat.st_mode):
+                    logger.error(f"路径是目录: {remote_path}")
+                    return jsonify({'success': False, 'error': '指定的路径是一个目录，不是文件'}), 400
+            except FileNotFoundError as e:
+                logger.error(f"文件不存在: {remote_path} - {e}")
+                return jsonify({'success': False, 'error': f'文件不存在: {remote_path}'}), 404
+            except PermissionError as e:
+                logger.error(f"权限不足: {remote_path} - {e}")
+                return jsonify({'success': False, 'error': '没有权限访问该文件'}), 403
             
             # 读取远程文件内容
+            logger.info(f"开始读取文件内容...")
             file_obj = sftp.open(remote_path, 'rb')
             file_content = file_obj.read()
             file_obj.close()
@@ -832,11 +868,16 @@ def sftp_download(asset_id):
             import os
             filename = os.path.basename(remote_path)
             
+            logger.info(f"文件下载成功: {filename}, 大小: {len(file_content)} 字节")
+            
             result = {
                 'success': True,
                 'filename': filename,
                 'data': file_b64
             }
+        except Exception as e:
+            logger.error(f"SFTP下载文件错误: {e}")
+            return jsonify({'success': False, 'error': f'下载失败: {str(e)}'}), 500
         finally:
             sftp.close()
             ssh.close()

@@ -1233,11 +1233,15 @@ async function downloadFile(filename) {
     
     // 构建完整路径
     let fullPath;
-    if (currentFilePath === '/' || currentFilePath === '~') {
+    if (currentFilePath === '/') {
         fullPath = currentFilePath + filename;
+    } else if (currentFilePath === '~') {
+        fullPath = '~/' + filename;
     } else {
         fullPath = currentFilePath + '/' + filename;
     }
+    
+    console.log('准备下载文件:', fullPath);
     
     try {
         showAlert('正在下载文件...', 'info');
@@ -1247,25 +1251,33 @@ async function downloadFile(filename) {
         });
         
         if (response.data.success) {
-            // 将base64数据转换为blob并下载
-            const data = atob(response.data.data);
-            const bytes = new Uint8Array(data.length);
-            for (let i = 0; i < data.length; i++) {
-                bytes[i] = data.charCodeAt(i);
+            try {
+                // 将base64数据转换为blob并下载
+                const base64Data = response.data.data;
+                // 使用更稳健的方式处理base64
+                const byteCharacters = atob(base64Data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray]);
+                
+                // 创建下载链接
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = response.data.filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showAlert('文件下载成功！', 'success');
+            } catch (error) {
+                console.error('下载文件处理失败:', error);
+                showAlert('文件下载处理失败！', 'danger');
             }
-            const blob = new Blob([bytes]);
-            
-            // 创建下载链接
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = response.data.filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            
-            showAlert('文件下载成功！', 'success');
         } else {
             showAlert(`下载失败: ${response.data.error}`, 'danger');
         }
