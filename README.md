@@ -101,7 +101,48 @@ sudo ./deploy.sh
 4. **访问系统**
 打开浏览器访问: `http://服务器IP:5000`
 
-### 方式四：Docker部署
+### 方式四：离线部署（纯内网环境）
+
+1. **在联网机器上打包**
+```bash
+# 创建离线部署包
+./package_offline.sh
+```
+
+这会创建一个包含所有依赖的离线包: `build/ops-management-offline-1.0.2.tar.gz`
+
+2. **传输到内网服务器**
+
+Linux:
+```bash
+scp build/ops-management-offline-1.0.2.tar.gz user@server:/tmp/
+```
+
+Windows:
+- 使用U盘或其他介质复制到目标机器
+
+3. **在内网服务器上部署**
+
+Linux系统:
+```bash
+cd /tmp
+tar -xzf ops-management-offline-1.0.2.tar.gz
+cd ops-management-offline
+chmod +x deploy_offline.sh
+./deploy_offline.sh
+```
+
+Windows系统:
+```cmd
+REM 解压到目标目录
+REM 运行部署脚本
+deploy_offline.bat
+```
+
+4. **访问系统**
+打开浏览器访问: `http://服务器IP:5000`
+
+### 方式五：Docker部署
 
 1. **准备Docker环境**
 ```bash
@@ -394,13 +435,15 @@ sudo ./deploy-docker.sh
 - 🌐 添加浏览器 meta 标签（theme-color, msapplication-TileColor）
 - 🌐 为所有 CSS 动画属性添加完整的 vendor 前缀（-webkit-, -moz-, -ms-, -o-）
 - 🌐 添加 Firefox 滚动条样式（scrollbar-width, scrollbar-color）
+- 🎁 新增离线部署功能，支持纯内网环境部署
+- 🎁 创建跨平台离线部署包（Windows/Linux/AlmaLinux）
+- 🎁 自动打包所有Python依赖包，无需互联网连接
+- 🎁 提供Windows (deploy_offline.bat) 和 Linux (deploy_offline.sh) 自动化部署脚本
 - 🐛 修复"更多操作"下拉菜单点击无响应的问题
 - 🔧 优化下拉按钮的定位逻辑，使用 ID 直接查找
 - 🔧 改进下拉按钮的 CSS 样式，确保可点击性（pointer-events, cursor, user-select）
 - 🔧 添加 `.dropdown-toggle-btn` 样式类，提高按钮可用性
-- 🔧 添加浏览器兼容性说明：支持 Chrome、Firefox、Edge、Safari、Opera
-
-- 📝 更新 README 文档
+- 📝 更新 README 文档，添加离线部署说明
 
 ### 版本 1.0.1
 - ✨ 新增 SFTP 文件管理功能
