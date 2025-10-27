@@ -11,6 +11,7 @@
 - 📊 **实时监控**: 资产状态实时检测
 - 👥 **用户管理**: 多用户权限管理
 - 🎨 **科技风格**: 现代化UI设计
+- 🌐 **浏览器兼容**: 支持 Chrome、Firefox、Edge、Safari、Opera
 - 🐳 **容器化**: 支持Docker部署
 - 🚀 **一键部署**: 支持AlmaLinux 9.2一键离线部署
 - 💻 **跨平台**: 支持 Windows、Linux 系统
@@ -388,7 +389,18 @@ sudo ./deploy-docker.sh
 
 ## 更新日志
 
-### 版本 1.0.1（最新）
+### 版本 1.0.2（最新）
+- 🌐 新增 Firefox 浏览器兼容性支持
+- 🌐 添加浏览器 meta 标签（theme-color, msapplication-TileColor）
+- 🌐 为所有 CSS 动画属性添加完整的 vendor 前缀（-webkit-, -moz-, -ms-, -o-）
+- 🌐 添加 Firefox 滚动条样式（scrollbar-width, scrollbar-color）
+- 🐛 修复"更多操作"下拉菜单点击无响应的问题
+- 🔧 优化下拉按钮的定位逻辑，使用 ID 直接查找
+- 🔧 改进下拉按钮的 CSS 样式，确保可点击性（pointer-events, cursor, user-select）
+- 🔧 添加 `.dropdown-toggle-btn` 样式类，提高按钮可用性
+- 📝 更新 README 文档
+
+### 版本 1.0.1
 - ✨ 新增 SFTP 文件管理功能
 - ✨ 支持文件上传下载
 - ✨ 支持目录浏览和导航（进入/返回上级）

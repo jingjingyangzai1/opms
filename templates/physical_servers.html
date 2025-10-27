@@ -273,8 +273,8 @@ function showDropdown(assetId) {
         return;
     }
     
-    // 查找对应的按钮 - 向上查找父元素的按钮
-    const button = menu.parentElement.querySelector('button');
+    // 通过ID直接查找对应的按钮
+    const button = document.getElementById(`dropdown-btn-${assetId}`);
     if (!button) {
         console.error('Button not found for menu:', menu);
         return;
@@ -447,7 +447,7 @@ function updateServersTable() {
                                 <i class="fas fa-file"></i>
                             </button>
                             <div class="btn-group dropdown">
-                                <button type="button" class="btn btn-secondary dropdown-toggle" onclick="toggleDropdown(${server.id})" title="更多操作" data-bs-toggle="dropdown" aria-expanded="false">
+                                <button type="button" class="btn btn-secondary dropdown-toggle-btn" id="dropdown-btn-${server.id}" onclick="toggleDropdown(${server.id})" title="更多操作">
                                     <i class="fas fa-ellipsis-v"></i>
                                 </button>
                                 <ul class="dropdown-menu" id="dropdown-${server.id}" role="menu">
@@ -623,6 +623,16 @@ function showAlert(message, type) {
 
 <style>
 /* 下拉菜单样式 */
+/* 确保下拉按钮可点击 */
+.dropdown-toggle-btn {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+}
+
 .dropdown-menu {
     background-color: #1a1a1a !important;
     border: 1px solid #333 !important;
