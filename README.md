@@ -4,7 +4,7 @@
 
 ## 功能特性
 
-- 🔐 **用户认证**: 安全的登录/登出系统
+- 🔐 **用户认证**: 安全的登录/登出系统，支持前后端分离
 - 🖥️ **资产管理**: 训练系统资产和主控物理服务器管理
 - 🔄 **远程控制**: SSH远程终端（支持自定义窗口大小）
 - 📁 **文件管理**: SFTP文件上传下载，支持目录导航
@@ -12,8 +12,10 @@
 - 👥 **用户管理**: 多用户权限管理
 - 🎨 **科技风格**: 现代化UI设计
 - 🐳 **容器化**: 支持Docker部署
-- 🚀 **一键部署**: 支持AlmaLinux 9.2一键离线部署
+- 🚀 **一键部署**: 支持AlmaLinux 9.2一键离线部署和Windows一键启动
 - 💻 **跨平台**: 支持 Windows、Linux 系统
+- 📄 **分页功能**: 资产列表支持分页浏览，每页50条记录
+- 🎯 **优化界面**: 倒三角菜单优化，防止误操作删除资产
 
 ## 系统要求
 
@@ -37,6 +39,32 @@
 
 ### 方式一：Windows 快速启动（开发环境）
 
+#### 选项A：前后端分离模式（推荐）
+
+1. **安装后端依赖**
+```bash
+pip install -r requirements.txt
+```
+
+2. **安装前端依赖**
+```bash
+cd frontend
+npm install
+```
+
+3. **一键启动所有服务**
+```bash
+# 使用一键启动脚本（自动启动后端和前端）
+start-all.bat
+```
+
+4. **访问系统**
+- 后端服务: `http://localhost:5000`
+- 前端服务: `http://localhost:3000` (推荐访问此地址)
+- 局域网访问: `http://你的电脑IP:3000`
+
+#### 选项B：传统模式（仅后端）
+
 1. **安装依赖**
 ```bash
 pip install -r requirements.txt
@@ -44,17 +72,17 @@ pip install -r requirements.txt
 
 2. **启动服务**
 ```bash
-# 方式1: 使用启动脚本（推荐）
+# 使用启动脚本（推荐）
 start.bat
 
-# 方式2: 直接运行
-python app.py
+# 或直接运行
+python run.py
 ```
 
 3. **访问系统**
 打开浏览器访问: `http://localhost:5000`
 
-默认登录信息:
+#### 默认登录信息
 - 用户名: `admin`
 - 密码: `admin123`
 
@@ -166,16 +194,38 @@ docker-compose logs -f
 
 ```
 运维系统/
-├── app.py                          # 主应用文件
+├── app.py                          # Flask主应用文件
+├── run.py                          # 运行入口脚本
 ├── config.py                       # 配置文件
-├── start_app.py                    # 启动脚本
+├── start_app.py                    # 生产环境启动脚本
 ├── requirements.txt                # Python依赖
-├── templates/                      # HTML模板
+├── package.json                    # 前端依赖配置
+├── vite.config.js                  # Vite配置文件
+├── templates/                      # Flask HTML模板（后端页面）
 │   ├── base.html
 │   ├── login.html
 │   ├── training_assets.html
 │   ├── physical_servers.html
-│   └── users.html
+│   ├── users.html
+│   ├── database_manager.html
+│   └── browser_compatibility.html
+├── src/                            # React前端源代码
+│   ├── App.tsx                     # 主应用组件
+│   ├── main.tsx                    # 入口文件
+│   ├── pages/                      # 页面组件
+│   │   ├── Login.tsx
+│   │   ├── Dashboard.tsx
+│   │   └── TrainingSystemAssets.tsx
+│   ├── components/                 # 通用组件
+│   │   └── ProtectedRoute.tsx
+│   └── contexts/                   # React Context
+│       └── AuthContext.tsx
+├── frontend/                       # 前端构建输出（如存在）
+├── instance/                       # 实例目录
+│   └── ops_management.db          # SQLite数据库
+├── start.bat                       # Windows后端启动脚本
+├── start-all.bat                   # Windows一键启动脚本（前后端）
+├── start.sh                        # Linux启动脚本
 ├── deploy.sh                       # 一键部署脚本
 ├── uninstall.sh                    # 卸载脚本
 ├── package.sh                      # 打包脚本
@@ -183,6 +233,8 @@ docker-compose logs -f
 ├── test-deployment.sh              # 部署测试脚本
 ├── Dockerfile                      # Docker镜像文件
 ├── docker-compose.yml              # Docker Compose配置
+├── README.md                       # 项目说明（本文件）
+├── CHANGELOG.md                    # 更新日志
 └── DEPLOYMENT.md                   # 详细部署文档
 ```
 
@@ -194,6 +246,9 @@ docker-compose logs -f
 - 实时状态监控
 - SSH远程控制（重启/关机）
 - SSH 终端会话管理
+- **分页浏览**: 每页显示50条记录，支持快速翻页
+- **操作菜单**: 更多操作菜单（编辑/删除），防止误操作
+- **表格优化**: 扩大表格宽度（1600px），优化列间距
 
 ### 2. SSH 远程终端
 - **交互式终端**: 完整的 SSH 终端模拟
@@ -388,7 +443,19 @@ sudo ./deploy-docker.sh
 
 ## 更新日志
 
-### 版本 1.0.1（最新）
+详细的更新日志请查看 [CHANGELOG.md](CHANGELOG.md)
+
+### 版本 1.1.0（最新）
+- ✨ 新增前后端分离架构（React + Flask）
+- ✨ 新增一键启动脚本（Windows: start-all.bat）
+- ✨ 资产列表新增分页功能（每页50条）
+- ✨ 优化表格宽度（1600px）和列间距
+- ✨ 优化更多操作菜单（编辑/删除），防止误操作
+- 🔧 优化菜单展开空间，避免被滚动条遮挡
+- 🔧 改进分页控件样式，符合现代化设计
+- 🔧 优化缓存控制，确保页面更新及时生效
+
+### 版本 1.0.1
 - ✨ 新增 SFTP 文件管理功能
 - ✨ 支持文件上传下载
 - ✨ 支持目录浏览和导航（进入/返回上级）
