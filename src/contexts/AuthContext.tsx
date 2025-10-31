@@ -9,7 +9,7 @@ interface User {
 interface AuthContextType {
   user: User | null
   login: (username: string, password: string) => Promise<boolean>
-  logout: () => void
+  logout: () => Promise<void>
   loading: boolean
 }
 
@@ -28,38 +28,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // 检查本地存储中的用户信息
-    const savedUser = localStorage.getItem('user')
-    if (savedUser) {
-      setUser(JSON.parse(savedUser))
+    const bootstrap = async () => {
+      try {
+        const res = await fetch('/api/auth/me', {
+          method: 'GET',
+          credentials: 'include'
+        })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.success && data.user) {
+            setUser(data.user)
+            localStorage.setItem('user', JSON.stringify(data.user))
+          } else {
+            setUser(null)
+            localStorage.removeItem('user')
+          }
+        } else {
+          setUser(null)
+          localStorage.removeItem('user')
+        }
+      } catch {
+        setUser(null)
+        localStorage.removeItem('user')
+      } finally {
+        setLoading(false)
+      }
     }
-    setLoading(false)
+    bootstrap()
   }, [])
 
   const login = async (username: string, password: string): Promise<boolean> => {
     setLoading(true)
-    
-    // 模拟登录API调用
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    // 简单的模拟验证（实际项目中应该调用真实的API）
-    if (username === 'admin' && password === 'admin123') {
-      const userData: User = {
-        id: '1',
-        username: 'admin',
-        name: '系统管理员'
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ username, password })
+      })
+      if (!res.ok) return false
+      const data = await res.json()
+      if (data.success && data.user) {
+        setUser(data.user)
+        localStorage.setItem('user', JSON.stringify(data.user))
+        return true
       }
-      setUser(userData)
-      localStorage.setItem('user', JSON.stringify(userData))
+      return false
+    } catch {
+      return false
+    } finally {
       setLoading(false)
-      return true
     }
-    
-    setLoading(false)
-    return false
   }
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+    } catch {}
     setUser(null)
     localStorage.removeItem('user')
   }

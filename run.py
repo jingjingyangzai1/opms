@@ -14,17 +14,17 @@ def main():
     # 初始化数据库
     with app.app_context():
         create_tables()
-        print("✅ 数据库初始化完成")
+        print("[OK] 数据库初始化完成")
     
     # 启动后台任务
     start_background_tasks()
-    print("✅ 后台任务已启动")
+    print("[OK] 后台任务已启动")
     
     # 启动Flask应用
-    print("🚀 运维管理系统启动中...")
-    print("📊 访问地址: http://localhost:5000")
-    print("📝 日志文件: ops_management.log")
-    print("⏹️  按 Ctrl+C 停止服务")
+    print(">> 运维管理系统启动中...")
+    print(">> 访问地址: http://localhost:5000")
+    print(">> 日志文件: ops_management.log")
+    print(">> 按 Ctrl+C 停止服务")
     
     app.run(
         host='0.0.0.0',

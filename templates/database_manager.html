@@ -1,0 +1,1958 @@
+{% extends "base.html" %}
+
+{% block title %}数据库管理 - 运维管理系统{% endblock %}
+
+{% block extra_css %}
+<style>
+    .db-manager-main {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 100px);
+        background: #f0f0f0;
+        padding: 10px;
+        gap: 10px;
+    }
+    
+    /* 工具栏 */
+    .db-toolbar {
+        background: white;
+        border-radius: 4px;
+        padding: 10px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .db-toolbar-btn {
+        padding: 6px 12px;
+        border: 1px solid #d0d0d0;
+        background: white;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        transition: all 0.2s;
+    }
+    
+    .db-toolbar-btn:hover {
+        background: #f0f0f0;
+        border-color: #00d4ff;
+    }
+    
+    .db-toolbar-btn.active {
+        background: #e6f7ff;
+        border-color: #00d4ff;
+        color: #00d4ff;
+    }
+    
+    /* 主体区域 */
+    .db-manager-body {
+        display: flex;
+        flex: 1;
+        gap: 10px;
+        overflow: hidden;
+    }
+    
+    /* 左侧连接面板 */
+    .db-connection-panel {
+        width: 250px;
+        background: white;
+        border-radius: 4px;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .db-connection-header {
+        padding: 12px;
+        background: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        font-weight: bold;
+        color: #495057;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .db-connection-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+    }
+    
+    .db-connection-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-radius: 4px;
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s;
+    }
+    
+    .db-connection-item:hover {
+        background: #f0f0f0;
+    }
+    
+    .db-connection-item.active {
+        background: #e6f7ff;
+        color: #00d4ff;
+    }
+    
+    .db-connection-icon {
+        width: 16px;
+        height: 16px;
+    }
+    
+    /* 右侧内容区域 */
+    .db-content-area {
+        flex: 1;
+        background: white;
+        border-radius: 4px;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .db-content-tabs {
+        padding: 8px 12px;
+        background: #f8f9fa;
+        border-bottom: 1px solid #dee2e6;
+        display: flex;
+        gap: 20px;
+    }
+    
+    .db-content-tab {
+        padding: 6px 12px;
+        cursor: pointer;
+        color: #666;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s;
+    }
+    
+    .db-content-tab.active {
+        color: #1890ff;
+        border-bottom-color: #1890ff;
+    }
+    
+    .db-content-pane {
+        flex: 1;
+        padding: 16px;
+        overflow-y: auto;
+    }
+    
+    /* 对象列表区域 */
+    .db-object-list-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #e8e8e8;
+    }
+    
+    .db-object-list-actions {
+        display: flex;
+        gap: 8px;
+    }
+    
+    .db-action-btn {
+        padding: 6px 12px;
+        border: 1px solid #d9d9d9;
+        background: white;
+        border-radius: 4px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        transition: all 0.2s;
+    }
+    
+    .db-action-btn:hover {
+        border-color: #1890ff;
+        color: #1890ff;
+    }
+    
+    /* SQL编辑器 */
+    .db-sql-editor-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        gap: 10px;
+    }
+    
+    .db-sql-editor {
+        flex: 1;
+        border: 1px solid #d9d9d9;
+        border-radius: 4px;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 14px;
+        padding: 12px;
+        resize: none;
+    }
+    
+    .db-sql-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    /* 结果表格容器 */
+    #sqlResultArea {
+        margin-top: 16px;
+        width: 100%;
+        overflow: visible;
+    }
+    
+    /* 表格滚动容器 - 强制启用滚动 */
+    #sqlResultScrollContainer {
+        overflow-x: scroll !important;
+        overflow-y: auto !important;
+        max-height: 800px !important;
+        width: 100% !important;
+        position: relative !important;
+        display: block !important;
+        scrollbar-width: auto !important;
+        scrollbar-color: #00d4ff rgba(240, 240, 240, 0.9) !important;
+        -webkit-overflow-scrolling: touch !important;
+        border: 2px solid #e0e0e0 !important;
+        border-radius: 8px !important;
+        background: #fafafa !important;
+    }
+    
+    /* 容器内的表格必须能够超出容器宽度 */
+    #sqlResultScrollContainer table {
+        width: max-content !important;
+        min-width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+        display: table !important;
+        margin: 0 !important;
+    }
+    
+    /* 单元格内容不换行，强制保持单行 - 关键设置！ */
+    #sqlResultScrollContainer th,
+    #sqlResultScrollContainer td {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        max-width: none !important;
+        min-width: 250px !important;
+        width: 250px !important;
+        padding: 14px 16px !important;
+        vertical-align: middle !important;
+        box-sizing: border-box !important;
+        line-height: 1.8 !important;
+    }
+    
+    /* 表头列宽 - 可调整大小 */
+    #sqlResultScrollContainer thead th {
+        min-width: 250px !important;
+        max-width: none !important;
+        width: 250px !important;
+        padding: 14px 16px !important;
+        position: sticky !important;
+        top: 0 !important;
+        background: white !important;
+        z-index: 10 !important;
+        font-weight: 600 !important;
+        border-bottom: 2px solid #e8e8e8 !important;
+        cursor: col-resize !important;
+        user-select: none !important;
+        line-height: 1.8 !important;
+    }
+    
+    /* 表头右侧调整把手 */
+    #sqlResultScrollContainer thead th::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        cursor: col-resize;
+        background: transparent;
+    }
+    
+    #sqlResultScrollContainer thead th:hover::after {
+        background: #1890ff;
+        opacity: 0.3;
+    }
+    
+    /* 表格单元格边框 */
+    #sqlResultScrollContainer td {
+        border-right: 1px solid #f0f0f0 !important;
+        border-bottom: 1px solid #f0f0f0 !important;
+    }
+    
+    #sqlResultScrollContainer th {
+        border-right: 1px solid #e8e8e8 !important;
+    }
+    
+    /* 分页控件 */
+    #sqlResultPagination {
+        margin-top: 12px;
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+        gap: 20px;
+        padding: 10px;
+        background: #fafafa;
+        border-radius: 4px;
+        border: 1px solid #e8e8e8;
+        flex-wrap: wrap;
+    }
+    
+    .pagination-info {
+        font-size: 14px;
+        color: #666;
+    }
+    
+    .pagination-buttons {
+        display: flex;
+        gap: 8px;
+    }
+    
+    .pagination-btn {
+        padding: 6px 12px;
+        border: 1px solid #d0d0d0;
+        background: white;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        color: #666;
+        transition: all 0.2s;
+    }
+    
+    .pagination-btn:hover {
+        background: #f0f0f0;
+        border-color: #00d4ff;
+        color: #00d4ff;
+    }
+    
+    .pagination-btn.active {
+        background: #e6f7ff;
+        border-color: #00d4ff;
+        color: #00d4ff;
+        font-weight: bold;
+    }
+    
+    .pagination-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .pagination-btn:disabled:hover {
+        background: white;
+        border-color: #d0d0d0;
+        color: #666;
+    }
+    
+    #sqlResultArea * {
+        color: #333 !important;
+    }
+    
+    #sqlResultArea th,
+    #sqlResultArea td {
+        color: #333 !important;
+    }
+    
+    /* 结果表格 */
+    .db-result-table,
+    #sqlResultTable {
+        border-collapse: collapse !important;
+        background: white;
+        font-size: 13px;
+        display: table !important;
+        width: auto !important;
+        min-width: 100% !important;
+        table-layout: auto !important;
+    }
+    
+    /* 确保表格行和单元格正确显示 */
+    #sqlResultTable tr {
+        display: table-row !important;
+    }
+    
+    #sqlResultTable th,
+    #sqlResultTable td {
+        display: table-cell !important;
+    }
+    
+    /* 自定义滚动条样式 - 适用于表格容器 */
+    #sqlResultScrollContainer::-webkit-scrollbar {
+        width: 20px !important;
+        height: 20px !important;
+    }
+    
+    #sqlResultScrollContainer::-webkit-scrollbar-track {
+        background: linear-gradient(90deg, #f0f0f0, #e8e8e8) !important;
+        -webkit-background: linear-gradient(90deg, #f0f0f0, #e8e8e8) !important;
+        border-radius: 10px !important;
+        border: 2px solid #d0d0d0 !important;
+        box-shadow: inset 0 0 5px rgba(0,0,0,0.1) !important;
+        -webkit-box-shadow: inset 0 0 5px rgba(0,0,0,0.1) !important;
+        -moz-box-shadow: inset 0 0 5px rgba(0,0,0,0.1) !important;
+    }
+    
+    #sqlResultScrollContainer::-webkit-scrollbar-thumb {
+        background: linear-gradient(45deg, #00d4ff, #0099cc, #0077aa) !important;
+        -webkit-background: linear-gradient(45deg, #00d4ff, #0099cc, #0077aa) !important;
+        border-radius: 10px !important;
+        border: 3px solid #fff !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
+        -webkit-box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
+        -moz-box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
+        cursor: grab !important;
+        min-height: 30px !important;
+        min-width: 30px !important;
+    }
+    
+    #sqlResultScrollContainer::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(45deg, #00b8e6, #0088bb, #006699) !important;
+        -webkit-background: linear-gradient(45deg, #00b8e6, #0088bb, #006699) !important;
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4) !important;
+        -webkit-box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4) !important;
+        -moz-box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4) !important;
+        cursor: grab !important;
+        -webkit-transform: scale(1.05) !important;
+        -moz-transform: scale(1.05) !important;
+        -ms-transform: scale(1.05) !important;
+        -o-transform: scale(1.05) !important;
+        transform: scale(1.05) !important;
+    }
+    
+    #sqlResultScrollContainer::-webkit-scrollbar-thumb:active {
+        background: linear-gradient(45deg, #0088bb, #006699, #004477) !important;
+        -webkit-background: linear-gradient(45deg, #0088bb, #006699, #004477) !important;
+        cursor: grabbing !important;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5) !important;
+        -webkit-box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5) !important;
+        -moz-box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5) !important;
+    }
+    
+    #sqlResultScrollContainer::-webkit-scrollbar-corner {
+        background: linear-gradient(135deg, #f0f0f0, #e8e8e8) !important;
+        -webkit-background: linear-gradient(135deg, #f0f0f0, #e8e8e8) !important;
+        border-radius: 10px !important;
+    }
+    
+    /* IE/Edge 兼容性 */
+    @supports (-ms-ime-align: auto) {
+        #sqlResultScrollContainer {
+            -ms-overflow-style: auto !important;
+        }
+    }
+    
+    /* Firefox 滚动条样式 */
+    #sqlResultScrollContainer {
+        scrollbar-width: auto !important;
+        scrollbar-color: #00d4ff #f0f0f0 !important;
+    }
+    
+    .db-result-table thead,
+    #sqlResultThead {
+        display: table-header-group;
+    }
+    
+    .db-result-table tbody,
+    #sqlResultTbody {
+        display: table-row-group;
+    }
+    
+    .db-result-table th,
+    #sqlResultThead th,
+    .db-result-table thead th {
+        background: #fafafa;
+        padding: 10px;
+        border-bottom: 1px solid #e8e8e8;
+        text-align: left;
+        font-weight: 500;
+        color: #333;
+        display: table-cell;
+    }
+    
+    .db-result-table td,
+    #sqlResultTbody td,
+    .db-result-table tbody td {
+        padding: 10px;
+        border-bottom: 1px solid #f0f0f0;
+        white-space: nowrap;
+        display: table-cell;
+        color: #333;
+        background: white;
+    }
+    
+    .db-result-table th,
+    #sqlResultThead th,
+    .db-result-table thead th {
+        white-space: nowrap;
+    }
+    
+    .db-result-table tr,
+    #sqlResultThead tr,
+    #sqlResultTbody tr,
+    .db-result-table thead tr,
+    .db-result-table tbody tr {
+        display: table-row;
+    }
+    
+    .db-result-table tr:hover,
+    #sqlResultTbody tr:hover,
+    .db-result-table tbody tr:hover {
+        background: #f5f5f5;
+    }
+    
+    /* 空状态 */
+    .db-empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: #999;
+    }
+    
+    .db-empty-icon {
+        font-size: 48px;
+    }
+    
+    /* 树形结构样式 */
+    .db-tree-node {
+        margin: 2px 0;
+    }
+    
+    .db-tree-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        user-select: none;
+    }
+    
+    .db-expand-icon {
+        display: inline-block;
+        width: 12px;
+        font-size: 10px;
+        transition: transform 0.2s;
+        color: #666;
+    }
+    
+    .db-tree-children {
+        margin-left: 12px;
+        border-left: 1px solid #e0e0e0;
+    }
+    
+    .db-table-item {
+        padding: 4px 8px 4px 24px;
+        cursor: pointer;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        user-select: none;
+    }
+    
+    .db-table-item:hover {
+        background: #f0f0f0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="padding: 0; margin: 0;">
+    <div class="row" style="margin: 0;">
+        <!-- 侧边栏 -->
+        <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+            <div class="position-sticky pt-0">
+                <div class="text-center mb-1">
+                    <div style="font-size: 28px; color: #00d4ff; margin-bottom: 4px;">
+                        <i class="fas fa-database"></i>
+                    </div>
+                    <h6 class="text-white" style="font-size: 1rem;">运维管理系统</h6>
+                </div>
+                
+                <!-- 导航菜单 -->
+                <ul class="nav flex-column" style="font-size: 1.1rem;">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('training_assets') }}">
+                            <i class="fas fa-database me-2"></i>训练系统资产
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('physical_servers') }}">
+                            <i class="fas fa-server me-2"></i>主控物理服务器
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('database_manager') }}">
+                            <i class="fas fa-code me-2"></i>数据库管理
+                        </a>
+                    </li>
+                    <h6 class="text-white-50 mb-3 mt-3">用户管理</h6>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('users') }}">
+                                <i class="fas fa-users me-2"></i>用户管理
+                            </a>
+                        </li>
+                    </ul>
+                </ul>
+            </div>
+        </nav>
+
+        <!-- 主内容区域 -->
+        <main class="col-md-9 ms-sm-auto col-lg-10" style="padding: 0.5rem; margin: 0;">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-0 pb-0 mb-0">
+                <h1 class="h2 text-white" style="margin-top: 0; margin-bottom: 0; font-size: 2rem;">
+                    <i class="fas fa-database me-2" style="color: #00d4ff;"></i>数据库管理
+                </h1>
+                <div class="btn-toolbar mb-0 mb-md-0">
+                    <div class="btn-group me-2">
+                        <span class="text-white me-2 ms-2" style="font-size: 1.1rem;">欢迎, {{ current_user.name }}</span>
+                        <a href="{{ url_for('logout') }}" class="btn btn-outline-danger">
+                            <i class="fas fa-sign-out-alt me-1"></i>退出
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据库管理器 -->
+            <div class="db-manager-main">
+                <!-- 工具栏 -->
+                <div class="db-toolbar">
+                    <button class="db-toolbar-btn" onclick="showConnectModal()">
+                        <i class="fas fa-plug"></i>
+                        <span>连接</span>
+                    </button>
+                    <button class="db-toolbar-btn" onclick="showQueryEditor()">
+                        <i class="fas fa-code"></i>
+                        <span>查询</span>
+                    </button>
+                    <button class="db-toolbar-btn active" onclick="showObjects('table')">
+                        <i class="fas fa-table"></i>
+                        <span>表</span>
+                    </button>
+                    <button class="db-toolbar-btn" onclick="showObjects('view')">
+                        <i class="fas fa-th"></i>
+                        <span>视图</span>
+                    </button>
+                    <button class="db-toolbar-btn" onclick="showObjects('function')">
+                        <i class="fas fa-function"></i>
+                        <span>函数</span>
+                    </button>
+                    <button class="db-toolbar-btn" onclick="showSQL()">
+                        <i class="fas fa-terminal"></i>
+                        <span>SQL</span>
+                    </button>
+                </div>
+
+                <!-- 主体区域 -->
+                <div class="db-manager-body">
+                    <!-- 左侧：连接面板 -->
+                    <div class="db-connection-panel">
+                        <div class="db-connection-header">
+                            <span>我的连接</span>
+                            <button onclick="showConnectModal()" style="border: none; background: none; cursor: pointer;">
+                                <i class="fas fa-plus text-primary"></i>
+                            </button>
+                        </div>
+                        <div class="db-connection-list" id="connectionList">
+                            <div class="db-empty-state">
+                                <div class="db-empty-icon">📡</div>
+                                <div>暂无连接，点击右上角 + 创建连接</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 右侧：内容区域 -->
+                    <div class="db-content-area">
+                        <div class="db-content-tabs" id="contentTabs">
+                            <div class="db-content-tab active" onclick="switchContentTab('objects')">对象</div>
+                            <div class="db-content-tab" onclick="switchContentTab('sql')">SQL</div>
+                        </div>
+
+                        <div class="db-content-pane">
+                            <!-- 对象列表 -->
+                            <div id="tabObjects">
+                                <div class="db-object-list-header">
+                                    <h5 style="margin: 0; font-size: 16px;">名称</h5>
+                                    <div class="db-object-list-actions" id="objectActions">
+                                        <button class="db-action-btn" onclick="openObject()">
+                                            <i class="fas fa-folder-open"></i>打开表
+                                        </button>
+                                        <button class="db-action-btn" onclick="designObject()">
+                                            <i class="fas fa-pencil-alt"></i>设计表
+                                        </button>
+                                        <button class="db-action-btn" onclick="createObject()">
+                                            <i class="fas fa-plus"></i>新建表
+                                        </button>
+                                        <button class="db-action-btn" onclick="deleteObject()">
+                                            <i class="fas fa-minus" style="color: #f5222d;"></i>删除
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="objectList" class="db-empty-state">
+                                    <div class="db-empty-icon">📋</div>
+                                    <div>请在左侧选择一个连接</div>
+                                </div>
+                            </div>
+
+                            <!-- SQL编辑器 -->
+                            <div id="tabSQL" style="display: none;">
+                                <div class="db-sql-editor-container">
+                                    <textarea id="sqlEditor" class="db-sql-editor" placeholder="输入SQL语句..."></textarea>
+                                    <div class="db-sql-toolbar">
+                                        <div>
+                                            <button class="db-action-btn" onclick="executeSQL()">
+                                                <i class="fas fa-play"></i>执行
+                                            </button>
+                                            <button class="db-action-btn" onclick="clearSQL()">
+                                                <i class="fas fa-eraser"></i>清空
+                                            </button>
+                                        </div>
+                                        <div id="sqlResultStats"></div>
+                                    </div>
+                                    <div id="sqlResultArea" style="display: none;">
+                                        <div id="sqlResultScrollContainer" style="border: 1px solid #e8e8e8; border-radius: 4px; background: white; margin-bottom: 12px;">
+                                            <table class="db-result-table" id="sqlResultTable">
+                                                <thead id="sqlResultThead"></thead>
+                                                <tbody id="sqlResultTbody"></tbody>
+                                            </table>
+                                        </div>
+                                        <!-- 分页控件 -->
+                                        <div id="sqlResultPagination" style="display: none;">
+                                            <div class="pagination-info" id="paginationInfo"></div>
+                                            <div class="pagination-buttons" id="paginationButtons"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- 连接数据库模态框 -->
+<div class="modal fade" id="connectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">
+                    <i class="fas fa-plug me-2"></i>新建连接
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label text-white">连接名称 *</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="connectionName" placeholder="输入连接名称">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-white">数据库类型 *</label>
+                    <select class="form-select bg-dark text-white border-secondary" id="dbType">
+                        <option value="mysql">MySQL</option>
+                        <option value="postgresql">PostgreSQL</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-white">主机地址 *</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="dbHost" placeholder="192.168.1.100">
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <label class="form-label text-white">端口 *</label>
+                        <input type="number" class="form-control bg-dark text-white border-secondary" id="dbPort" value="3306">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-white">数据库名（可选）</label>
+                        <input type="text" class="form-control bg-dark text-white border-secondary" id="dbName" placeholder="留空则显示所有数据库">
+                    </div>
+                </div>
+                <div class="mb-3 mt-3">
+                    <label class="form-label text-white">用户名 *</label>
+                    <input type="text" class="form-control bg-dark text-white border-secondary" id="dbUsername" placeholder="root">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-white">密码 *</label>
+                    <input type="password" class="form-control bg-dark text-white border-secondary" id="dbPassword" placeholder="password">
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="connectDatabase()">
+                    <i class="fas fa-plug me-2"></i>连接
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let connections = []; // 存储所有连接
+let currentConnection = null;
+let currentConnectionId = null;
+let databaseType = null;
+
+// 分页相关变量
+let currentPage = 1;
+const pageSize = 50; // 每页显示50行
+let allRows = []; // 存储所有数据行
+
+// 显示连接模态框
+function showConnectModal() {
+    const modal = new bootstrap.Modal(document.getElementById('connectModal'));
+    modal.show();
+}
+
+// 连接数据库
+async function connectDatabase() {
+    const name = document.getElementById('connectionName').value;
+    const dbType = document.getElementById('dbType').value;
+    const host = document.getElementById('dbHost').value;
+    const port = document.getElementById('dbPort').value;
+    const database = document.getElementById('dbName').value || null;
+    const username = document.getElementById('dbUsername').value;
+    const password = document.getElementById('dbPassword').value;
+
+    if (!name || !dbType || !host || !port || !username || !password) {
+        alert('请填写所有必需字段');
+        return;
+    }
+
+    try {
+        const response = await axios.post('/api/database/connect', {
+            name: name,
+            type: dbType,
+            host: host,
+            port: port,
+            database: database,
+            username: username,
+            password: password
+        });
+
+        if (response.data.success) {
+            const connection = {
+                id: response.data.connection_id,
+                name: name,
+                type: dbType,
+                host: host,
+                port: port,
+                username: username,
+                database: database,
+                connected: true
+            };
+            connections.push(connection);
+            updateConnectionList();
+            
+            // 切换到新连接
+            selectConnection(connection.id);
+            
+            const modal = bootstrap.Modal.getInstance(document.getElementById('connectModal'));
+            modal.hide();
+            
+            // 清空表单
+            document.getElementById('connectionName').value = '';
+            document.getElementById('dbHost').value = '';
+            document.getElementById('dbPort').value = '3306';
+            document.getElementById('dbName').value = '';
+            document.getElementById('dbUsername').value = '';
+            document.getElementById('dbPassword').value = '';
+        } else {
+            alert('连接失败: ' + response.data.message);
+        }
+    } catch (error) {
+        alert('连接失败: ' + (error.response?.data?.message || error.message));
+    }
+}
+
+// 更新连接列表
+function updateConnectionList() {
+    const listDiv = document.getElementById('connectionList');
+    
+    if (connections.length === 0) {
+        listDiv.innerHTML = `
+            <div class="db-empty-state">
+                <div class="db-empty-icon">📡</div>
+                <div>暂无连接，点击右上角 + 创建连接</div>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    connections.forEach(conn => {
+        const icon = conn.type === 'mysql' ? '🐬' : '🐘';
+        html += `
+            <div class="db-connection-item" onclick="event.stopPropagation(); selectConnection('${conn.id}')" id="conn-${conn.id}">
+                <span class="db-connection-icon">${icon}</span>
+                <span style="flex: 1;">${conn.name}</span>
+                <span onclick="event.stopPropagation(); deleteConnection('${conn.id}')" 
+                      style="padding: 2px 6px; cursor: pointer; color: #ff4d4f; font-size: 12px;"
+                      title="删除连接">🗑️</span>
+            </div>
+        `;
+    });
+    listDiv.innerHTML = html;
+}
+
+
+// 加载数据库
+async function loadDatabases() {
+    try {
+        console.log('开始加载数据库列表，当前连接ID:', currentConnectionId, '数据库类型:', databaseType);
+        
+        const showDatabasesSQL = databaseType === 'mysql' 
+            ? 'SHOW DATABASES' 
+            : "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname";
+        
+        const response = await axios.post('/api/database/execute', {
+            connection_id: currentConnectionId,
+            sql: showDatabasesSQL
+        });
+        
+        console.log('数据库列表响应:', response.data);
+        
+        const objectListEl = document.getElementById('objectList');
+        if (!objectListEl) {
+            console.error('无法找到 objectList 元素');
+            throw new Error('页面元素未找到');
+        }
+        
+        if (response.data.success && response.data.result) {
+            const result = response.data.result;
+            
+            console.log('原始返回数据:', JSON.stringify(result, null, 2));
+            
+            // 检查是否有rows字段
+            if (result.rows && result.rows.length > 0) {
+                let html = '';
+                result.rows.forEach((row, index) => {
+                    console.log(`第${index}行:`, row, '类型:', typeof row);
+                    
+                    // 获取数据库名称
+                    let dbName;
+                    
+                    if (typeof row === 'object' && row !== null && !Array.isArray(row)) {
+                        // 对于字典类型，取第一个键的值
+                        const keys = Object.keys(row);
+                        const values = Object.values(row);
+                        console.log(`  keys:`, keys, `values:`, values);
+                        
+                        // 排除列名本身
+                        if (keys.length > 0 && keys[0] !== values[0]) {
+                            dbName = values[0];
+                        } else if (keys.length > 1) {
+                            dbName = values[1]; // 如果有多个值，取第二个
+                        } else {
+                            dbName = values[0];
+                        }
+                    } else if (Array.isArray(row)) {
+                        dbName = row[0];
+                    } else {
+                        dbName = row;
+                    }
+                    
+                    console.log(`解析的数据库名:`, dbName);
+                    
+                    // 确保 dbName 是字符串且不是列名
+                    if (dbName && typeof dbName === 'string' && dbName !== 'Database' && dbName !== 'datname') {
+                        html += `
+                            <div class="db-tree-node" data-db-name="${dbName}">
+                                <div class="db-tree-item" 
+                                     onmousedown="event.preventDefault(); toggleDatabase('${dbName}')" 
+                                     onmouseover="this.style.background='#f0f0f0'" 
+                                     onmouseout="this.style.background='white'">
+                                    <span class="db-expand-icon">▶</span>
+                                    <i class="fas fa-database me-2"></i>${dbName}
+                                </div>
+                                <div class="db-tree-children" id="db-${dbName}" style="display:none;"></div>
+                            </div>
+                        `;
+                    }
+                });
+                objectListEl.innerHTML = html;
+                
+                // 更新主内容区域，显示已选择连接的状态
+                const tabStructure = document.getElementById('tabStructure');
+                const tabData = document.getElementById('tabData');
+                const tabSql = document.getElementById('tabSql');
+                
+                if (tabStructure) tabStructure.innerHTML = '<p>请选择一个数据库来查看表结构</p>';
+                if (tabData) tabData.innerHTML = '<p>请选择一个数据库来查看数据</p>';
+                if (tabSql) {
+                    const textarea = tabSql.querySelector('textarea');
+                    if (textarea) textarea.value = '';
+                }
+                
+            } else {
+                console.warn('没有数据库返回');
+                objectListEl.innerHTML = `
+                    <div class="db-empty-state">
+                        <div class="db-empty-icon">⚠️</div>
+                        <div>未找到数据库</div>
+                    </div>
+                `;
+            }
+        } else {
+            console.error('加载数据库失败:', response.data);
+            objectListEl.innerHTML = `
+                <div class="db-empty-state">
+                    <div class="db-empty-icon">❌</div>
+                    <div>加载失败: ${response.data.message || '未知错误'}</div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('加载数据库异常:', error);
+        
+        // 安全处理错误显示
+        const objectListEl = document.getElementById('objectList');
+        if (objectListEl) {
+            objectListEl.innerHTML = `
+                <div class="db-empty-state">
+                    <div class="db-empty-icon">❌</div>
+                    <div>加载失败: ${error.message || '未知错误'}</div>
+                </div>
+            `;
+        }
+        
+        throw error;  // 重新抛出错误，让调用者处理
+    }
+}
+
+// 切换数据库展开/折叠
+async function toggleDatabase(dbName) {
+    if (!currentConnectionId) return;
+    
+    const childrenEl = document.getElementById(`db-${dbName}`);
+    if (!childrenEl) return;
+    
+    // 如果已展开，则折叠
+    if (childrenEl.style.display !== 'none') {
+        childrenEl.style.display = 'none';
+        const icon = document.querySelector(`[data-db-name="${dbName}"] .db-expand-icon`);
+        if (icon) icon.textContent = '▶';
+        return;
+    }
+    
+    // 展开并加载表
+    childrenEl.style.display = 'block';
+    const icon = document.querySelector(`[data-db-name="${dbName}"] .db-expand-icon`);
+    if (icon) icon.textContent = '▼';
+    
+    // 如果还没有加载过表，则加载
+    if (childrenEl.innerHTML === '') {
+        childrenEl.innerHTML = '<div style="padding: 4px 8px; color: #666; font-size: 12px;">加载中...</div>';
+        await loadTablesForDb(dbName);
+    }
+}
+
+// 加载指定数据库的表
+async function loadTablesForDb(dbName) {
+    if (!currentConnectionId) return;
+    
+    try {
+        console.log(`开始加载数据库 "${dbName}" 的表列表`);
+        
+        // 对于 MySQL，直接指定数据库名
+        const showTablesSQL = databaseType === 'mysql' 
+            ? `SHOW TABLES FROM \`${dbName}\``
+            : `SELECT table_name FROM information_schema.tables WHERE table_schema = '${dbName}' AND table_type = 'BASE TABLE'`;
+        
+        console.log('执行 SQL:', showTablesSQL);
+        
+        const response = await axios.post('/api/database/execute', {
+            connection_id: currentConnectionId,
+            sql: showTablesSQL
+        });
+        
+        console.log('获取表列表响应:', response.data);
+        
+        const childrenEl = document.getElementById(`db-${dbName}`);
+        if (!childrenEl) return;
+        
+        if (response.data.success && response.data.result && response.data.result.rows) {
+            console.log('表数据行数:', response.data.result.rows.length);
+            let html = '';
+            response.data.result.rows.forEach((row, index) => {
+                console.log(`第${index}行表数据:`, row);
+                
+                let tableName;
+                
+                if (typeof row === 'object' && row !== null && !Array.isArray(row)) {
+                    // 获取字典的第一个值（忽略键名）
+                    const values = Object.values(row);
+                    tableName = values[0];
+                    console.log('从字典获取表名:', tableName, 'keys:', Object.keys(row));
+                } else if (Array.isArray(row)) {
+                    tableName = row[0];
+                    console.log('从数组获取表名:', tableName);
+                } else {
+                    tableName = row;
+                    console.log('直接使用值作为表名:', tableName);
+                }
+                
+                console.log(`解析的表名:`, tableName);
+                
+                // 排除列名和其他无效值
+                if (tableName && typeof tableName === 'string' && 
+                    !tableName.startsWith('Tables_in_') && 
+                    tableName !== 'table_name' &&
+                    tableName !== 'TABLE_NAME' &&
+                    tableName !== 'Table_in_' + dbName) {
+                    html += `
+                        <div class="db-table-item" 
+                             ondblclick="openTable('${dbName}', '${tableName}')"
+                             style="padding: 4px 8px 4px 24px; cursor: pointer; border-radius: 4px;"
+                             onmouseover="this.style.background='#f0f0f0'" 
+                             onmouseout="this.style.background='white'">
+                            <i class="fas fa-table me-2"></i>${tableName}
+                        </div>
+                    `;
+                }
+            });
+            
+            if (html) {
+                childrenEl.innerHTML = html;
+            } else {
+                childrenEl.innerHTML = '<div style="padding: 4px 8px; color: #999; font-size: 12px;">无表</div>';
+            }
+        } else {
+            console.error('获取表列表失败:', response.data);
+            childrenEl.innerHTML = '<div style="padding: 4px 8px; color: #999; font-size: 12px;">无表</div>';
+        }
+    } catch (error) {
+        console.error('加载表失败:', error);
+        const childrenEl = document.getElementById(`db-${dbName}`);
+        if (childrenEl) {
+            let errorMsg = '加载失败: ';
+            if (error.response) {
+                errorMsg += error.response.data.message || error.response.statusText || '服务器错误';
+            } else if (error.request) {
+                errorMsg += '无响应';
+            } else {
+                errorMsg += error.message;
+            }
+            childrenEl.innerHTML = `<div style="padding: 4px 8px; color: #f44336; font-size: 12px;">${errorMsg}</div>`;
+        }
+    }
+}
+
+// 打开表（双击）
+async function openTable(dbName, tableName) {
+    if (!currentConnectionId) return;
+    
+    console.log(`打开表: ${dbName}.${tableName}`);
+    
+    currentDatabase = dbName;
+    currentTable = tableName;
+    
+    // 切换到SQL标签页并执行查询
+    switchContentTab('sql');
+    
+    // 生成SQL查询 - 直接使用数据库名.表名的格式
+    let sql;
+    if (databaseType === 'mysql') {
+        // MySQL使用反引号包裹的完整路径
+        sql = 'SELECT * FROM `' + dbName + '`.`' + tableName + '` LIMIT 100';
+        console.log('生成的MySQL SQL:', sql);
+    } else {
+        // PostgreSQL使用双引号包裹的完整路径
+        sql = `SELECT * FROM "${dbName}"."${tableName}" LIMIT 100`;
+        console.log('生成的PostgreSQL SQL:', sql);
+    }
+    
+    document.getElementById('sqlEditor').value = sql;
+    
+    // 直接执行SQL
+    try {
+        await executeSQL();
+    } catch (error) {
+        console.error('执行SQL失败:', error);
+    }
+}
+
+// 选择数据库（旧函数，保留兼容性）
+async function selectDatabase(dbName) {
+    await toggleDatabase(dbName);
+}
+
+// 加载表
+async function loadTables(dbName) {
+    try {
+        const showTablesSQL = databaseType === 'mysql' 
+            ? 'SHOW TABLES'
+            : `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'`;
+        
+        const response = await axios.post('/api/database/execute', {
+            connection_id: currentConnectionId,
+            sql: showTablesSQL
+        });
+        
+        if (response.data.success && response.data.result.rows) {
+            let html = '';
+            response.data.result.rows.forEach((row) => {
+                const tableName = Object.values(row)[0];
+                html += `
+                    <div style="padding: 8px 12px; cursor: pointer; border-radius: 4px; display: flex; align-items: center; justify-content: space-between;"
+                         onclick="openTable('${dbName}', '${tableName}')" 
+                         onmouseover="this.style.background='#f0f0f0'" 
+                         onmouseout="this.style.background='white'">
+                        <span><i class="fas fa-table me-2"></i>${tableName}</span>
+                        <span style="color: #999; font-size: 12px;">表</span>
+                    </div>
+                `;
+            });
+            document.getElementById('objectList').innerHTML = html;
+        }
+    } catch (error) {
+        console.error('加载表失败:', error);
+    }
+}
+
+// 切换工具栏按钮
+function showObjects(type) {
+    // 更新按钮状态
+    document.querySelectorAll('.db-toolbar-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    // 加载对应类型的对象
+    if (!currentConnectionId) {
+        document.getElementById('objectList').innerHTML = `
+            <div class="db-empty-state">
+                <div class="db-empty-icon">📋</div>
+                <div>请在左侧选择一个连接</div>
+            </div>
+        `;
+        return;
+    }
+    
+    // 根据类型重新加载数据库列表
+    loadDatabases();
+}
+
+// 打开对象
+function openObject() {
+    alert('请在对象列表中选择要打开的对象');
+}
+
+// 设计对象
+function designObject() {
+    alert('设计功能暂未实现');
+}
+
+// 创建对象
+function createObject() {
+    alert('创建功能暂未实现');
+}
+
+// 删除对象
+function deleteObject() {
+    if (confirm('确定要删除选中的对象吗？')) {
+        alert('删除功能暂未实现');
+    }
+}
+
+// 显示查询编辑器
+function showQueryEditor() {
+    switchContentTab('sql');
+}
+
+// 显示SQL标签
+function showSQL() {
+    switchContentTab('sql');
+}
+
+// 切换内容标签
+function switchContentTab(tabName) {
+    // 更新标签状态
+    document.querySelectorAll('.db-content-tab').forEach((tab, index) => {
+        tab.classList.remove('active');
+        if ((tabName === 'objects' && index === 0) || (tabName === 'sql' && index === 1)) {
+            tab.classList.add('active');
+        }
+    });
+    
+    // 隐藏所有内容
+    document.getElementById('tabObjects').style.display = 'none';
+    document.getElementById('tabSQL').style.display = 'none';
+    
+    // 显示对应内容
+    if (tabName === 'objects') {
+        document.getElementById('tabObjects').style.display = 'block';
+    } else if (tabName === 'sql') {
+        document.getElementById('tabSQL').style.display = 'block';
+    }
+}
+
+// 执行SQL
+async function executeSQL() {
+    if (!currentConnectionId) {
+        alert('请先选择一个连接');
+        return;
+    }
+    
+    const sql = document.getElementById('sqlEditor').value.trim();
+    if (!sql) {
+        alert('请输入SQL语句');
+        return;
+    }
+    
+    console.log('开始执行SQL:', sql);
+    
+    try {
+        const response = await axios.post('/api/database/execute', {
+            connection_id: currentConnectionId,
+            sql: sql
+        });
+        
+        console.log('SQL执行响应:', response.data);
+        
+        if (response.data.success) {
+            displaySQLResult(response.data.result);
+        } else {
+            console.error('SQL执行失败:', response.data.message);
+            alert('执行失败: ' + response.data.message);
+        }
+    } catch (error) {
+        console.error('SQL执行异常:', error);
+        let errorMsg = '执行失败: ';
+        if (error.response) {
+            // 服务器返回了错误响应
+            errorMsg += error.response.data.message || error.response.statusText || '服务器错误';
+            console.error('错误详情:', error.response.data);
+        } else if (error.request) {
+            errorMsg += '无响应';
+        } else {
+            errorMsg += error.message;
+        }
+        alert(errorMsg);
+    }
+}
+
+// 显示SQL执行结果
+function displaySQLResult(result) {
+    // 确保切换到SQL标签页
+    switchContentTab('sql');
+    
+    const area = document.getElementById('sqlResultArea');
+    const thead = document.getElementById('sqlResultThead');
+    const tbody = document.getElementById('sqlResultTbody');
+    
+    if (!area || !thead || !tbody) {
+        console.error('缺少必要的DOM元素');
+        alert('缺少必要的显示元素');
+        return;
+    }
+    
+    // 判断是否有查询结果
+    if (result.columns && result.rows !== undefined) {
+        // 有列信息，说明是查询语句
+        
+        // 渲染表头
+        let theadHTML = '<tr style="display: table-row;">';
+        result.columns.forEach(col => {
+            theadHTML += `<th style="display: table-cell; min-width: 250px; width: 250px; background: #fafafa; padding: 14px 16px; border-bottom: 2px solid #e8e8e8; text-align: left; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; line-height: 1.8;">${col}</th>`;
+        });
+        theadHTML += '</tr>';
+        thead.innerHTML = theadHTML;
+        
+        // 保存所有数据行用于分页
+        allRows = result.rows || [];
+        currentPage = 1;
+        
+        // 渲染当前页的数据行
+        renderCurrentPage(result.columns);
+        
+        // 显示表格 - 确保样式正确
+        const table = document.getElementById('sqlResultTable');
+        if (table) {
+            table.style.borderCollapse = 'collapse';
+            table.style.background = 'white';
+            table.style.display = 'table';
+            table.style.width = 'auto';
+            table.style.tableLayout = 'auto';
+        }
+        
+        // 确保滚动容器可见并可以拖动
+        const scrollContainer = document.getElementById('sqlResultScrollContainer');
+        if (scrollContainer && table) {
+            // 强制重置并应用样式
+            scrollContainer.style.cssText = 'overflow: auto !important; max-height: 500px !important; width: 100% !important; position: relative !important; display: block !important;';
+            
+            table.style.cssText = 'width: auto !important; min-width: 100% !important; table-layout: auto !important; border-collapse: separate !important; display: table !important;';
+            
+            // 延迟执行以确保DOM已完全渲染
+            setTimeout(() => {
+                // 计算所有列的宽度总和
+                let totalWidth = 0;
+                const containerWidth = scrollContainer.clientWidth;
+                const thElements = table.querySelectorAll('th');
+                const columnCount = thElements.length;
+                
+                console.log('==== 滚动调试信息 =====');
+                console.log('列数:', columnCount);
+                console.log('容器宽度:', containerWidth, 'px');
+                
+                if (columnCount > 0) {
+                    // 强制设置表格宽度，确保横向滚动条始终出现
+                    const minColWidth = 250; // 增加列宽
+                    totalWidth = Math.max(columnCount * minColWidth, containerWidth + 500); // 强制超出容器宽度
+                    
+                    console.log('每列最小宽度:', minColWidth, 'px');
+                    console.log('表格最小宽度:', totalWidth, 'px');
+                    console.log('容器宽度:', containerWidth, 'px');
+                    
+                    // 强制设置表格宽度，确保滚动条出现
+                    table.style.width = totalWidth + 'px';
+                    table.style.minWidth = totalWidth + 'px';
+                    table.style.maxWidth = 'none';
+                    table.style.tableLayout = 'fixed'; // 固定布局确保宽度生效
+                    
+                    console.log('✓ 强制设置表格宽度:', totalWidth, 'px');
+                    console.log('✓ 表格布局模式: fixed');
+                }
+                
+                // 延迟检查滚动条状态
+                setTimeout(() => {
+                    const containerScrollWidth = scrollContainer.scrollWidth;
+                    console.log('容器scrollWidth:', containerScrollWidth, 'px');
+                    console.log('超出宽度:', (containerScrollWidth - containerWidth), 'px');
+                    
+                    if (containerScrollWidth > containerWidth) {
+                        console.log('✓ 横向滚动已启用！可以拖动查看全部数据');
+                    } else {
+                        console.log('ℹ 警告：横向滚动未触发');
+                        // 最后一次尝试：强制让表格更宽
+                        table.style.width = (containerWidth + 200) + 'px';
+                        console.log('强制设置表格宽度:', (containerWidth + 200), 'px');
+                    }
+                    console.log('========================');
+                    
+                    // 初始化鼠标拖拽和滚轮操作
+                    initializeTableScroll();
+                }, 100);
+            }, 300);
+        }
+        
+        // 确保tbody也有正确的display样式
+        tbody.style.display = 'table-row-group';
+        
+        area.style.display = 'block';
+        area.style.visibility = 'visible';
+        area.style.opacity = '1';
+        area.style.marginTop = '16px';
+        
+        // 更新统计信息
+        const statsEl = document.getElementById('sqlResultStats');
+        if (statsEl) {
+            if (result.rows && result.rows.length > 0) {
+                statsEl.innerHTML = `<span style="color: #1890ff;">✓ 执行成功 - 共 ${result.row_count || result.rows.length} 行数据</span>`;
+            } else {
+                statsEl.innerHTML = `<span style="color: #52c41a;">✓ 执行成功 - 0 行数据</span>`;
+            }
+        }
+        
+        // 显示或隐藏分页控件
+        const paginationEl = document.getElementById('sqlResultPagination');
+        if (paginationEl) {
+            if (allRows && allRows.length > pageSize) {
+                paginationEl.style.display = 'flex';
+                updatePagination(allRows.length);
+            } else {
+                paginationEl.style.display = 'none';
+            }
+        }
+    } else {
+        // 非查询语句（如UPDATE, INSERT等）
+        area.style.display = 'none';
+        const statsEl = document.getElementById('sqlResultStats');
+        if (statsEl && result.message) {
+            statsEl.innerHTML = `<span style="color: #52c41a;">${result.message}</span>`;
+        }
+    }
+}
+
+// 渲染当前页数据
+function renderCurrentPage(columns) {
+    const tbody = document.getElementById('sqlResultTbody');
+    if (!tbody) return;
+    
+    let tbodyHTML = '';
+    
+    if (allRows.length > 0) {
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = Math.min(startIndex + pageSize, allRows.length);
+        const currentPageRows = allRows.slice(startIndex, endIndex);
+        
+        currentPageRows.forEach((row) => {
+            tbodyHTML += '<tr style="display: table-row;">';
+            columns.forEach(col => {
+                const value = row[col];
+                const displayValue = (value !== undefined && value !== null) ? String(value) : '';
+                tbodyHTML += `<td style="display: table-cell; min-width: 250px; width: 250px; padding: 14px 16px; color: #333; background: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; line-height: 1.8;">${displayValue}</td>`;
+            });
+            tbodyHTML += '</tr>';
+        });
+    } else {
+        // 即使没有数据行，也要创建一个空行并显示提示
+        tbodyHTML = '<tr style="display: table-row;"><td colspan="' + columns.length + '" style="display: table-cell; text-align: center; padding: 20px; color: #999;">查询成功，但返回0行数据</td></tr>';
+    }
+    
+    tbody.innerHTML = tbodyHTML;
+    tbody.style.display = 'table-row-group';
+}
+
+// 初始化鼠标拖拽和滚轮操作
+function initializeTableScroll() {
+    const scrollContainer = document.getElementById('sqlResultScrollContainer');
+    if (!scrollContainer) return;
+    
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let scrollLeft = 0;
+    let scrollTop = 0;
+    
+    // 鼠标按下事件
+    scrollContainer.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        scrollContainer.style.cursor = 'grabbing';
+        scrollContainer.style.userSelect = 'none';
+        
+        startX = e.pageX - scrollContainer.offsetLeft;
+        startY = e.pageY - scrollContainer.offsetTop;
+        scrollLeft = scrollContainer.scrollLeft;
+        scrollTop = scrollContainer.scrollTop;
+        
+        e.preventDefault();
+    });
+    
+    // 鼠标移动事件
+    scrollContainer.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        e.preventDefault();
+        const x = e.pageX - scrollContainer.offsetLeft;
+        const y = e.pageY - scrollContainer.offsetTop;
+        
+        const walkX = (x - startX) * 2;
+        const walkY = (y - startY) * 2;
+        
+        scrollContainer.scrollLeft = scrollLeft - walkX;
+        scrollContainer.scrollTop = scrollTop - walkY;
+    });
+    
+    // 鼠标释放事件
+    scrollContainer.addEventListener('mouseup', () => {
+        isDragging = false;
+        scrollContainer.style.cursor = 'grab';
+        scrollContainer.style.userSelect = '';
+    });
+    
+    // 鼠标离开容器时释放
+    scrollContainer.addEventListener('mouseleave', () => {
+        isDragging = false;
+        scrollContainer.style.cursor = 'grab';
+        scrollContainer.style.userSelect = '';
+    });
+    
+    // 悬停时显示抓取光标
+    scrollContainer.addEventListener('mouseenter', () => {
+        scrollContainer.style.cursor = 'grab';
+    });
+    
+    // 滚轮事件 - 横向滚动
+    scrollContainer.addEventListener('wheel', (e) => {
+        if (e.shiftKey || (e.deltaX !== 0)) {
+            e.preventDefault();
+            scrollContainer.scrollLeft += e.deltaY || e.deltaX;
+        }
+    }, { passive: false });
+    
+    console.log('✓ 鼠标拖拽和滚轮操作已初始化');
+}
+
+// 更新分页控件
+function updatePagination(totalRows) {
+    const totalPages = Math.ceil(totalRows / pageSize);
+    const infoEl = document.getElementById('paginationInfo');
+    const buttonsEl = document.getElementById('paginationButtons');
+    
+    if (!infoEl || !buttonsEl) return;
+    
+    // 更新信息
+    const startRow = (currentPage - 1) * pageSize + 1;
+    const endRow = Math.min(currentPage * pageSize, totalRows);
+    infoEl.innerHTML = `显示第 ${startRow}-${endRow} 行，共 ${totalRows} 行（第 ${currentPage}/${totalPages} 页）`;
+    
+    // 更新按钮
+    let buttonsHTML = '';
+    
+    // 首页
+    buttonsHTML += `<button class="pagination-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="goToPage(1)">
+        <i class="fas fa-angle-double-left"></i>
+    </button>`;
+    
+    // 上一页
+    buttonsHTML += `<button class="pagination-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="goToPage(${currentPage - 1})">
+        <i class="fas fa-angle-left"></i>
+    </button>`;
+    
+    // 页码按钮（显示当前页前后2页）
+    for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
+        buttonsHTML += `<button class="pagination-btn ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+    }
+    
+    // 下一页
+    buttonsHTML += `<button class="pagination-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="goToPage(${currentPage + 1})">
+        <i class="fas fa-angle-right"></i>
+    </button>`;
+    
+    // 末页
+    buttonsHTML += `<button class="pagination-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="goToPage(${totalPages})">
+        <i class="fas fa-angle-double-right"></i>
+    </button>`;
+    
+    buttonsEl.innerHTML = buttonsHTML;
+}
+
+// 跳转到指定页
+function goToPage(page) {
+    const thead = document.getElementById('sqlResultThead');
+    if (!thead || allRows.length === 0) return;
+    
+    const totalPages = Math.ceil(allRows.length / pageSize);
+    
+    if (page < 1 || page > totalPages) return;
+    
+    currentPage = page;
+    
+    // 获取列名
+    const columns = Array.from(thead.querySelectorAll('th')).map(th => th.textContent);
+    
+    // 重新渲染当前页
+    renderCurrentPage(columns);
+    
+    // 更新分页控件
+    updatePagination(allRows.length);
+    
+    // 滚动到表格顶部
+    const scrollContainer = document.getElementById('sqlResultScrollContainer');
+    if (scrollContainer) {
+        scrollContainer.scrollTop = 0;
+        scrollContainer.scrollLeft = 0;
+    }
+}
+
+// 清空SQL
+function clearSQL() {
+    document.getElementById('sqlEditor').value = '';
+    document.getElementById('sqlResultArea').style.display = 'none';
+    allRows = [];
+    currentPage = 1;
+}
+
+// 加载保存的连接
+async function loadSavedConnections() {
+    try {
+        console.log('开始加载保存的连接');
+        const response = await axios.get('/api/database/saved');
+        console.log('服务器响应:', response.data);
+        
+        if (response.data.success && response.data.connections) {
+            const savedConns = response.data.connections;
+            console.log('找到保存的连接数量:', savedConns.length);
+            connections = []; // 清空现有连接
+            savedConns.forEach(conn => {
+                connections.push({
+                    id: conn.id,
+                    name: conn.name,
+                    type: conn.type,
+                    host: conn.host,
+                    port: conn.port,
+                    username: conn.username,
+                    database: conn.database
+                });
+            });
+            console.log('已加载连接:', connections);
+            updateConnectionList();
+        } else {
+            console.log('没有找到保存的连接');
+            connections = [];
+            updateConnectionList();
+        }
+    } catch (error) {
+        console.error('加载保存的连接失败:', error);
+        connections = [];
+        updateConnectionList();
+    }
+}
+
+// 删除连接
+async function deleteConnection(connectionId) {
+    if (!confirm('确定要删除此连接吗？')) {
+        return;
+    }
+    
+    console.log('开始删除连接:', connectionId);
+    
+    try {
+        const response = await axios.post('/api/database/delete', {
+            connection_id: connectionId
+        });
+        
+        console.log('删除响应:', response.data);
+        
+        if (response.data.success) {
+            // 如果删除的是当前连接，清空当前状态
+            if (currentConnectionId === connectionId) {
+                currentConnectionId = null;
+                currentConnection = null;
+                document.getElementById('objectList').innerHTML = `
+                    <div class="db-empty-state">
+                        <div class="db-empty-icon">📡</div>
+                        <div>请在左侧选择一个连接</div>
+                    </div>
+                `;
+            }
+            
+            // 重新从服务器加载连接列表
+            await loadSavedConnections();
+            
+            alert('删除成功');
+        } else {
+            alert('删除失败: ' + response.data.message);
+        }
+    } catch (error) {
+        console.error('删除连接失败:', error);
+        alert('删除失败: ' + error.message);
+    }
+}
+
+// 重新连接（需要密码）
+async function reconnectDatabase(connectionId) {
+    const password = prompt('请输入密码：');
+    if (!password) return;
+    
+    try {
+        const response = await axios.post('/api/database/reconnect', {
+            connection_id: connectionId,
+            password: password
+        });
+        
+        if (response.data.success) {
+            currentConnectionId = response.data.connection_id;
+            const conn = connections.find(c => c.id === connectionId);
+            if (conn) {
+                currentConnection = conn;
+                databaseType = conn.type;
+                await loadDatabases();
+            }
+            alert('重新连接成功！');
+        } else {
+            alert('重新连接失败: ' + response.data.message);
+        }
+    } catch (error) {
+        alert('重新连接失败: ' + error.message);
+    }
+}
+
+// 修改 selectConnection 函数以支持重新连接
+async function selectConnection(connectionId) {
+    const conn = connections.find(c => c.id === connectionId);
+    if (!conn) {
+        console.error('未找到连接:', connectionId);
+        return;
+    }
+    
+    console.log('选择连接:', conn);
+    
+    // 更新选中状态
+    document.querySelectorAll('.db-connection-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    document.getElementById(`conn-${connectionId}`)?.classList.add('active');
+    
+    // 显示加载状态（检查元素是否存在）
+    const objectListEl = document.getElementById('objectList');
+    if (objectListEl) {
+        objectListEl.innerHTML = `
+            <div class="db-empty-state">
+                <div class="db-empty-icon">⏳</div>
+                <div>正在连接...</div>
+            </div>
+        `;
+    }
+    
+    // 检查连接是否已建立（通过尝试执行SQL）
+    try {
+        currentConnectionId = connectionId;
+        currentConnection = conn;
+        databaseType = conn.type;
+        
+        console.log('设置当前连接信息:', { currentConnectionId, databaseType });
+        
+        // 尝试加载数据库列表
+        await loadDatabases();
+    } catch (error) {
+        // 连接已断开，需要重新输入密码
+        console.log('连接已断开，需要重新连接，错误:', error);
+        
+        // 安全更新DOM
+        const objectListEl = document.getElementById('objectList');
+        if (objectListEl) {
+            objectListEl.innerHTML = `
+                <div class="db-empty-state">
+                    <div class="db-empty-icon">🔑</div>
+                    <div>需要重新输入密码</div>
+                </div>
+            `;
+        }
+        
+        const password = prompt(`请输入 ${conn.name} 的密码：`);
+        if (!password) {
+            if (objectListEl) {
+                objectListEl.innerHTML = `
+                    <div class="db-empty-state">
+                        <div class="db-empty-icon">❌</div>
+                        <div>已取消</div>
+                    </div>
+                `;
+            }
+            return;
+        }
+        
+        try {
+            const response = await axios.post('/api/database/reconnect', {
+                connection_id: connectionId,
+                password: password
+            });
+            
+            if (response.data.success) {
+                // 更新connectionId为新的ID
+                currentConnectionId = response.data.connection_id;
+                // 更新连接列表中的ID
+                conn.id = response.data.connection_id;
+                // 保存到connections数组
+                const index = connections.findIndex(c => c.id === connectionId);
+                if (index !== -1) {
+                    connections[index] = {...conn, id: response.data.connection_id};
+                }
+                
+                currentConnection = conn;
+                databaseType = conn.type;
+                
+                console.log('重新连接成功，新ID:', response.data.connection_id);
+                
+                // 重新加载数据库列表
+                await loadDatabases();
+                
+                // 更新DOM中的ID
+                const elem = document.getElementById(`conn-${connectionId}`);
+                if (elem) {
+                    elem.id = `conn-${response.data.connection_id}`;
+                    elem.onclick = () => selectConnection(response.data.connection_id);
+                }
+            } else {
+                alert('重新连接失败: ' + response.data.message);
+            }
+        } catch (err) {
+            console.error('重新连接异常:', err);
+            const errorMsg = err.response?.data?.message || err.message || '未知错误';
+            alert('重新连接失败: ' + errorMsg);
+        }
+    }
+}
+
+// 页面加载时初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 设置默认端口
+    document.getElementById('dbType').addEventListener('change', function() {
+        const portInput = document.getElementById('dbPort');
+        portInput.value = this.value === 'mysql' ? '3306' : '5432';
+    });
+    
+    // 初始化表格列宽调整功能
+    initializeColumnResize();
+    
+    // 加载保存的连接
+    loadSavedConnections();
+});
+
+// 初始化列宽调整功能
+function initializeColumnResize() {
+    let isResizing = false;
+    let currentHeader = null;
+    let startX = 0;
+    let startWidth = 0;
+    
+    document.addEventListener('mousedown', (e) => {
+        const header = e.target.closest('th');
+        if (!header) return;
+        
+        const headerRight = header.getBoundingClientRect().right;
+        const clickX = e.clientX;
+        
+        // 检查点击是否在表头的右侧10px范围内
+        if (clickX >= headerRight - 10 && clickX <= headerRight + 2) {
+            isResizing = true;
+            currentHeader = header;
+            startX = clickX;
+            startWidth = header.offsetWidth;
+            header.style.cursor = 'col-resize';
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        }
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing || !currentHeader) return;
+        
+        const diff = e.clientX - startX;
+        const newWidth = Math.max(120, startWidth + diff);
+        currentHeader.style.width = newWidth + 'px';
+        currentHeader.style.minWidth = newWidth + 'px';
+        
+        // 同步同一列的所有单元格宽度
+        const index = Array.from(currentHeader.parentElement.children).indexOf(currentHeader);
+        const table = currentHeader.closest('table');
+        if (table) {
+            const rows = table.querySelectorAll('tr');
+            rows.forEach(row => {
+                const cell = row.children[index];
+                if (cell) {
+                    cell.style.width = newWidth + 'px';
+                    cell.style.minWidth = newWidth + 'px';
+                }
+            });
+        }
+    });
+    
+    document.addEventListener('mouseup', () => {
+        if (isResizing) {
+            isResizing = false;
+            if (currentHeader) {
+                currentHeader.style.cursor = '';
+            }
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            currentHeader = null;
+        }
+    });
+}
+</script>
+{% endblock %}

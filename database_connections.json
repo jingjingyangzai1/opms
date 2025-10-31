@@ -1,0 +1,16 @@
+{
+  "connections": {
+    "a62481d7-53e8-4796-8fb4-42d049c60c9a": {
+      "id": "a62481d7-53e8-4796-8fb4-42d049c60c9a",
+      "name": "dddd",
+      "type": "mysql",
+      "host": "10.20.8.25",
+      "port": 3306,
+      "username": "root",
+      "database": null
+    }
+  },
+  "names": {
+    "a62481d7-53e8-4796-8fb4-42d049c60c9a": "dddd"
+  }
+}

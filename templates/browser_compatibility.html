@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>浏览器兼容性检测 - 运维管理系统</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .compatibility-card {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 600px;
+            text-align: center;
+        }
+        
+        .status-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        
+        .status-good { color: #52c41a; }
+        .status-warning { color: #faad14; }
+        .status-error { color: #ff4d4f; }
+        
+        .browser-info {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        
+        .recommendation {
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #00d4ff, #0099cc);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            padding: 12px 24px;
+            font-weight: bold;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 212, 255, 0.4);
+            color: white;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="compatibility-card">
+        <div id="status-icon" class="status-icon">🔍</div>
+        <h2>浏览器兼容性检测</h2>
+        <p>正在检测您的浏览器兼容性...</p>
+        
+        <div id="browser-info" class="browser-info" style="display: none;">
+            <h4>检测结果</h4>
+            <div id="browser-details"></div>
+        </div>
+        
+        <div id="recommendation" class="recommendation" style="display: none;">
+            <h4>建议</h4>
+            <div id="recommendation-content"></div>
+        </div>
+        
+        <div id="actions" style="display: none;">
+            <a href="/login" class="btn">继续访问系统</a>
+            <button onclick="location.reload()" class="btn">重新检测</button>
+        </div>
+    </div>
+
+    <script>
+        function detectBrowser() {
+            const userAgent = navigator.userAgent;
+            let browserName = 'Unknown';
+            let browserVersion = 'Unknown';
+            let isCompatible = true;
+            let issues = [];
+            let recommendations = [];
+
+            // 检测浏览器类型和版本
+            if (userAgent.indexOf('Chrome') > -1) {
+                browserName = 'Google Chrome';
+                const match = userAgent.match(/Chrome\/(\d+)/);
+                browserVersion = match ? match[1] : 'Unknown';
+                if (parseInt(browserVersion) < 80) {
+                    isCompatible = false;
+                    issues.push('Chrome版本过低');
+                    recommendations.push('请升级到Chrome 80或更高版本');
+                }
+            } else if (userAgent.indexOf('Firefox') > -1) {
+                browserName = 'Mozilla Firefox';
+                const match = userAgent.match(/Firefox\/(\d+)/);
+                browserVersion = match ? match[1] : 'Unknown';
+                if (parseInt(browserVersion) < 75) {
+                    isCompatible = false;
+                    issues.push('Firefox版本过低');
+                    recommendations.push('请升级到Firefox 75或更高版本');
+                }
+            } else if (userAgent.indexOf('Safari') > -1 && userAgent.indexOf('Chrome') === -1) {
+                browserName = 'Safari';
+                const match = userAgent.match(/Version\/(\d+)/);
+                browserVersion = match ? match[1] : 'Unknown';
+                if (parseInt(browserVersion) < 13) {
+                    isCompatible = false;
+                    issues.push('Safari版本过低');
+                    recommendations.push('请升级到Safari 13或更高版本');
+                }
+            } else if (userAgent.indexOf('Edge') > -1) {
+                browserName = 'Microsoft Edge';
+                const match = userAgent.match(/Edge\/(\d+)/);
+                browserVersion = match ? match[1] : 'Unknown';
+                if (parseInt(browserVersion) < 80) {
+                    isCompatible = false;
+                    issues.push('Edge版本过低');
+                    recommendations.push('请升级到Edge 80或更高版本');
+                }
+            } else if (userAgent.indexOf('MSIE') > -1 || userAgent.indexOf('Trident') > -1) {
+                browserName = 'Internet Explorer';
+                const match = userAgent.match(/(?:MSIE |rv:)(\d+)/);
+                browserVersion = match ? match[1] : 'Unknown';
+                isCompatible = false;
+                issues.push('Internet Explorer已不再支持');
+                recommendations.push('请使用Chrome、Firefox、Safari或Edge浏览器');
+            }
+
+            // 检测现代Web API支持
+            if (!window.Promise) {
+                isCompatible = false;
+                issues.push('不支持Promise API');
+                recommendations.push('浏览器版本过低，不支持现代JavaScript特性');
+            }
+            
+            if (!window.fetch) {
+                isCompatible = false;
+                issues.push('不支持Fetch API');
+                recommendations.push('浏览器版本过低，不支持现代网络请求API');
+            }
+            
+            if (!window.localStorage) {
+                isCompatible = false;
+                issues.push('不支持本地存储');
+                recommendations.push('浏览器版本过低，不支持本地存储功能');
+            }
+
+            // 显示结果
+            displayResults(browserName, browserVersion, isCompatible, issues, recommendations);
+        }
+
+        function displayResults(browserName, browserVersion, isCompatible, issues, recommendations) {
+            const statusIcon = document.getElementById('status-icon');
+            const browserInfo = document.getElementById('browser-info');
+            const browserDetails = document.getElementById('browser-details');
+            const recommendation = document.getElementById('recommendation');
+            const recommendationContent = document.getElementById('recommendation-content');
+            const actions = document.getElementById('actions');
+
+            // 设置状态图标
+            if (isCompatible) {
+                statusIcon.textContent = '✅';
+                statusIcon.className = 'status-icon status-good';
+            } else {
+                statusIcon.textContent = '⚠️';
+                statusIcon.className = 'status-icon status-warning';
+            }
+
+            // 显示浏览器信息
+            browserDetails.innerHTML = `
+                <p><strong>浏览器:</strong> ${browserName}</p>
+                <p><strong>版本:</strong> ${browserVersion}</p>
+                <p><strong>兼容性:</strong> ${isCompatible ? '✅ 兼容' : '⚠️ 部分兼容'}</p>
+            `;
+            browserInfo.style.display = 'block';
+
+            // 显示建议
+            if (recommendations.length > 0) {
+                recommendationContent.innerHTML = recommendations.map(rec => `<p>• ${rec}</p>`).join('');
+                recommendation.style.display = 'block';
+            }
+
+            // 显示操作按钮
+            actions.style.display = 'block';
+
+            // 如果兼容，3秒后自动跳转
+            if (isCompatible) {
+                setTimeout(() => {
+                    window.location.href = '/login';
+                }, 3000);
+            }
+        }
+
+        // 页面加载完成后开始检测
+        window.addEventListener('load', detectBrowser);
+    </script>
+</body>
+</html>
+

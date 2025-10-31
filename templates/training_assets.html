@@ -26,6 +26,11 @@
                             <i class="fas fa-server me-2"></i>主控物理服务器
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('database_manager') }}">
+                            <i class="fas fa-code me-2"></i>数据库管理
+                        </a>
+                    </li>
                 </ul>
                 
                 <!-- 用户管理区域 -->
@@ -82,23 +87,35 @@
 
             <!-- 资产列表 -->
             <div class="main-content">
-                <div class="table-responsive" style="width: 100%; max-width: none;">
-                    <table class="table table-dark table-hover" style="width: 100%; min-width: 1200px;">
+                <div class="table-responsive" style="width: 100%; max-width: none; overflow-x: auto; padding-bottom: 80px; margin-bottom: 10px;">
+                    <table class="table table-dark table-hover" style="width: 100%; min-width: 1600px;">
                          <thead>
                              <tr>
-                                 <th><i class="fas fa-tag me-1"></i>资产名称</th>
-                                 <th><i class="fas fa-cog me-1"></i>类型</th>
-                                 <th><i class="fas fa-circle me-1"></i>状态</th>
-                                 <th><i class="fas fa-network-wired me-1"></i>IP地址</th>
-                                 <th><i class="fas fa-plug me-1"></i>端口</th>
-                                 <th><i class="fas fa-clock me-1"></i>最后更新</th>
-                                 <th><i class="fas fa-tools me-1"></i>操作</th>
+                                 <th style="min-width: 180px;"><i class="fas fa-tag me-1"></i>资产名称</th>
+                                 <th style="min-width: 120px;"><i class="fas fa-cog me-1"></i>类型</th>
+                                 <th style="min-width: 100px;"><i class="fas fa-circle me-1"></i>状态</th>
+                                 <th style="min-width: 140px;"><i class="fas fa-network-wired me-1"></i>IP地址</th>
+                                 <th style="min-width: 80px;"><i class="fas fa-plug me-1"></i>端口</th>
+                                 <th style="min-width: 180px;"><i class="fas fa-clock me-1"></i>最后更新</th>
+                                 <th style="min-width: 400px;"><i class="fas fa-tools me-1"></i>操作</th>
                              </tr>
                          </thead>
                         <tbody id="assetsTableBody">
                             <!-- 资产数据将通过JavaScript动态加载 -->
                         </tbody>
                     </table>
+                </div>
+                
+                <!-- 分页控件 -->
+                <div class="pagination-container" style="margin-top: 20px; padding: 12px 16px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="pagination-info" style="color: rgba(255, 255, 255, 0.8); font-size: 14px;">
+                            <span id="paginationInfo">显示第 0-0 行,共 0 行 (第 0/0 页)</span>
+                        </div>
+                        <div class="pagination-buttons" id="assetsPagination">
+                            <!-- 分页按钮将通过JavaScript动态生成 -->
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>
@@ -220,33 +237,52 @@
 {% block extra_js %}
 <script>
 let currentAssets = [];
+let currentPage = 1;
+let itemsPerPage = 50; // 每页50条，与图片示例一致
 
 // 全局变量存储当前打开的下拉菜单
 let currentDropdown = null;
 
-// 切换下拉菜单显示/隐藏
-function toggleDropdown(assetId) {
-    console.log('toggleDropdown called with assetId:', assetId);
-    const menu = document.getElementById(`dropdown-${assetId}`);
-    console.log('Found menu element:', menu);
-    if (!menu) {
-        console.error('Menu not found for assetId:', assetId);
-        return;
+// 切换更多操作菜单显示/隐藏（简化版本，更可靠）
+function toggleMoreActions(assetId) {
+    // 关闭所有其他菜单
+    document.querySelectorAll('.more-actions-menu').forEach(function(menu) {
+        if (menu.id !== `more-actions-${assetId}`) {
+            menu.style.display = 'none';
+        }
+    });
+    
+    // 切换当前菜单
+    const menu = document.getElementById(`more-actions-${assetId}`);
+    if (menu) {
+        if (menu.style.display === 'none' || !menu.style.display) {
+            menu.style.display = 'block';
+        } else {
+            menu.style.display = 'none';
+        }
     }
-    
-    // 如果当前菜单已经打开，则关闭它
-    if (currentDropdown === assetId) {
-        console.log('Closing current dropdown');
-        closeDropdown(assetId);
-        return;
+}
+
+// 关闭更多操作菜单
+function closeMoreActions(assetId) {
+    const menu = document.getElementById(`more-actions-${assetId}`);
+    if (menu) {
+        menu.style.display = 'none';
     }
-    
-    // 关闭其他所有下拉菜单
-    closeAllDropdowns();
-    
-    // 显示当前菜单
-    console.log('Showing dropdown for assetId:', assetId);
-    showDropdown(assetId);
+}
+
+// 关闭所有更多操作菜单
+function closeAllMoreActions() {
+    document.querySelectorAll('.more-actions-menu').forEach(function(menu) {
+        menu.style.display = 'none';
+    });
+}
+
+// 确认并删除资产
+function confirmAndDeleteAsset(assetId) {
+    if (confirm('⚠️ 警告：确定要删除这个资产吗？\n\n此操作不可恢复，请谨慎操作！')) {
+        deleteAsset(assetId);
+    }
 }
 
 // 显示下拉菜单
@@ -365,26 +401,43 @@ function closeAllDropdowns() {
     currentDropdown = null;
 }
 
+// 初始化更多操作菜单事件监听器（简化版本）
+function initMoreActionsListeners() {
+    // 点击页面其他地方时关闭所有菜单
+    if (!window._moreActionsClickHandler) {
+        window._moreActionsClickHandler = function(e) {
+            // 如果点击的不是更多操作按钮或菜单项，则关闭所有菜单
+            if (!e.target.closest('.more-actions-menu') && !e.target.closest('[onclick*="toggleMoreActions"]')) {
+                closeAllMoreActions();
+            }
+        };
+        document.addEventListener('click', window._moreActionsClickHandler, true);
+    }
+    
+    // ESC键关闭菜单
+    if (!window._moreActionsKeyHandler) {
+        window._moreActionsKeyHandler = function(e) {
+            if (e.key === 'Escape') {
+                closeAllMoreActions();
+            }
+        };
+        document.addEventListener('keydown', window._moreActionsKeyHandler);
+    }
+    
+    // 窗口大小改变或滚动时关闭菜单
+    window.addEventListener('resize', closeAllMoreActions);
+    window.addEventListener('scroll', closeAllMoreActions, true);
+}
+
 // 页面加载时获取资产数据
 document.addEventListener('DOMContentLoaded', function() {
     loadAssets();
-    
-    // 点击页面其他地方关闭所有下拉菜单
-    document.addEventListener('click', function(e) {
-        if (!e.target.closest('.dropdown') && !e.target.closest('.dropdown-menu')) {
-            closeAllDropdowns();
-        }
-    });
-    
-    // 窗口大小改变时关闭所有下拉菜单
-    window.addEventListener('resize', function() {
-        closeAllDropdowns();
-    });
-    
-    // 滚动时关闭所有下拉菜单
-    window.addEventListener('scroll', function() {
-        closeAllDropdowns();
-    }, true);
+    initMoreActionsListeners();
+});
+
+// 页面完全加载后初始化
+window.addEventListener('load', function() {
+    initMoreActionsListeners();
 });
 
 // 加载资产数据
@@ -392,6 +445,7 @@ async function loadAssets() {
     try {
         const response = await axios.get('/api/assets?category=training');
         currentAssets = response.data;
+        currentPage = 1; // 重置到第一页
         updateAssetsTable();
         updateStatistics();
     } catch (error) {
@@ -400,51 +454,209 @@ async function loadAssets() {
     }
 }
 
-// 更新资产表格
+// 更新资产表格（带分页）
 function updateAssetsTable() {
     const tbody = document.getElementById('assetsTableBody');
     tbody.innerHTML = '';
     
-    currentAssets.forEach(asset => {
+    // 计算分页
+    const totalItems = currentAssets.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+    const paginatedAssets = currentAssets.slice(startIndex, endIndex);
+    
+    // 如果当前页超出范围，跳转到最后一页
+    if (currentPage > totalPages) {
+        currentPage = totalPages;
+        updateAssetsTable();
+        return;
+    }
+    
+    // 渲染当前页的数据
+    paginatedAssets.forEach(asset => {
         const row = document.createElement('tr');
-         row.innerHTML = `
+        // 转义HTML特殊字符，防止XSS
+        const assetId = String(asset.id).replace(/[<>"']/g, '');
+        const assetName = String(asset.name || '').replace(/[<>]/g, '');
+        const assetType = String(asset.type || '').replace(/[<>]/g, '');
+        const assetIp = String(asset.ip || '').replace(/[<>]/g, '');
+        const assetPort = String(asset.port || '').replace(/[<>]/g, '');
+        const assetStatus = String(asset.status || 'offline').replace(/[<>]/g, '');
+        const assetLastUpdate = String(asset.last_update || '').replace(/[<>]/g, '');
+        
+        row.innerHTML = `
              <td>
                  <i class="fas fa-database me-2" style="color: #00d4ff;"></i>
-                 <span class="text-white">${asset.name}</span>
+                 <span class="text-white">${assetName}</span>
              </td>
-             <td><span class="badge bg-primary">${asset.type}</span></td>
-             <td>${getStatusBadge(asset.status)}</td>
-             <td><span class="text-info font-monospace">${asset.ip}</span></td>
-             <td><span class="text-white-50">${asset.port}</span></td>
-             <td><span class="text-white-50">${asset.last_update}</span></td>
+             <td><span class="badge bg-primary">${assetType}</span></td>
+             <td>${getStatusBadge(assetStatus)}</td>
+             <td><span class="text-info font-monospace">${assetIp}</span></td>
+             <td><span class="text-white-50">${assetPort}</span></td>
+             <td><span class="text-white-50">${assetLastUpdate}</span></td>
                     <td>
                         <div class="btn-group" role="group">
-                            <button class="btn btn-success" onclick="restartAsset(${asset.id})" title="重启">
+                            <button class="btn btn-success" onclick="restartAsset(${assetId})" title="重启">
                                 <i class="fas fa-redo"></i>
                             </button>
-                            <button class="btn btn-warning" onclick="shutdownAsset(${asset.id})" title="关机">
+                            <button class="btn btn-warning" onclick="shutdownAsset(${assetId})" title="关机">
                                 <i class="fas fa-power-off"></i>
                             </button>
-                            <button class="btn btn-info" onclick="openTerminal(${asset.id})" title="SSH终端">
+                            <button class="btn btn-info" onclick="openTerminal(${assetId})" title="SSH终端">
                                 <i class="fas fa-terminal"></i>
                             </button>
-                            <button class="btn btn-primary" onclick="openFileManager(${asset.id})" title="文件管理">
+                            <button class="btn btn-primary" onclick="openFileManager(${assetId})" title="文件管理">
                                 <i class="fas fa-file"></i>
                             </button>
-                            <div class="btn-group dropdown">
-                                <button type="button" class="btn btn-secondary dropdown-toggle" onclick="toggleDropdown(${asset.id}); return false;" title="更多操作" id="dropdown-btn-${asset.id}">
+                            <div class="btn-group" style="position: relative;">
+                                <button type="button" 
+                                        class="btn btn-secondary" 
+                                        onclick="toggleMoreActions('${assetId}')"
+                                        title="更多操作"
+                                        style="position: relative; z-index: 1001; cursor: pointer;">
                                     <i class="fas fa-ellipsis-v"></i>
                                 </button>
-                                <ul class="dropdown-menu" id="dropdown-${asset.id}" role="menu">
-                                    <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); editAsset(${asset.id}); closeDropdown(${asset.id})" role="menuitem"><i class="fas fa-edit me-2"></i>编辑</a></li>
-                                    <li><a class="dropdown-item text-danger" href="#" onclick="event.preventDefault(); deleteAsset(${asset.id}); closeDropdown(${asset.id})" role="menuitem"><i class="fas fa-trash me-2"></i>删除</a></li>
-                                </ul>
+                                <div id="more-actions-${assetId}" 
+                                     class="more-actions-menu" 
+                                     style="display: none; position: absolute; right: 0; top: 100%; z-index: 10000; margin-top: 5px; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); min-width: 120px;">
+                                    <a href="javascript:void(0)" 
+                                       class="more-actions-item" 
+                                       onclick="editAsset(${assetId}); closeMoreActions('${assetId}');">
+                                        <i class="fas fa-edit me-2"></i>编辑
+                                    </a>
+                                    <a href="javascript:void(0)" 
+                                       class="more-actions-item more-actions-item-danger" 
+                                       onclick="confirmAndDeleteAsset(${assetId}); closeMoreActions('${assetId}');">
+                                        <i class="fas fa-trash me-2"></i>删除
+                                    </a>
+                                </div>
                             </div>
                         </div>
                     </td>
          `;
         tbody.appendChild(row);
     });
+    
+    // 更新分页控件
+    updatePagination(totalItems, totalPages, startIndex, endIndex);
+    
+    // 表格更新后，确保更多操作菜单功能正常
+    setTimeout(function() {
+        initMoreActionsListeners();
+    }, 50);
+}
+
+// 更新分页控件（按图片样式）
+function updatePagination(totalItems, totalPages, startIndex, endIndex) {
+    const paginationEl = document.getElementById('assetsPagination');
+    const infoEl = document.getElementById('paginationInfo');
+    
+    if (!paginationEl || !infoEl) return;
+    
+    // 更新信息显示（格式：显示第 1-50 行,共 100 行 (第 1/2 页)）
+    if (totalItems > 0) {
+        const startRow = startIndex + 1;
+        const endRow = endIndex;
+        infoEl.textContent = `显示第 ${startRow}-${endRow} 行,共 ${totalItems} 行 (第 ${currentPage}/${totalPages} 页)`;
+    } else {
+        infoEl.textContent = '显示第 0-0 行,共 0 行 (第 0/0 页)';
+    }
+    
+    // 生成分页按钮
+    paginationEl.innerHTML = '';
+    
+    if (totalPages <= 1) {
+        return; // 只有一页或没有数据时不显示分页
+    }
+    
+    // 首页按钮（«）- 在第一页时禁用
+    const firstBtn = createPageButton('«', 1, currentPage === 1, 'first');
+    paginationEl.appendChild(firstBtn);
+    
+    // 上一页按钮（<）- 在第一页时禁用
+    const prevBtn = createPageButton('<', currentPage - 1, currentPage === 1, 'prev');
+    paginationEl.appendChild(prevBtn);
+    
+    // 页码按钮
+    const maxVisiblePages = 7;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage < maxVisiblePages - 1) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    // 第一页和省略号
+    if (startPage > 1) {
+        const firstPageBtn = createPageButton('1', 1, false, 'number');
+        paginationEl.appendChild(firstPageBtn);
+        
+        if (startPage > 2) {
+            const ellipsisBtn = document.createElement('button');
+            ellipsisBtn.className = 'pagination-btn pagination-btn-disabled';
+            ellipsisBtn.innerHTML = '...';
+            ellipsisBtn.disabled = true;
+            paginationEl.appendChild(ellipsisBtn);
+        }
+    }
+    
+    // 页码按钮
+    for (let i = startPage; i <= endPage; i++) {
+        const pageBtn = createPageButton(String(i), i, i === currentPage, 'number');
+        paginationEl.appendChild(pageBtn);
+    }
+    
+    // 最后一页和省略号
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            const ellipsisBtn = document.createElement('button');
+            ellipsisBtn.className = 'pagination-btn pagination-btn-disabled';
+            ellipsisBtn.innerHTML = '...';
+            ellipsisBtn.disabled = true;
+            paginationEl.appendChild(ellipsisBtn);
+        }
+        
+        const lastPageBtn = createPageButton(String(totalPages), totalPages, false, 'number');
+        paginationEl.appendChild(lastPageBtn);
+    }
+    
+    // 下一页按钮（>）- 在最后一页时禁用
+    const nextBtn = createPageButton('>', currentPage + 1, currentPage === totalPages, 'next');
+    paginationEl.appendChild(nextBtn);
+    
+    // 末页按钮（»）- 在最后一页时禁用
+    const lastBtn = createPageButton('»', totalPages, currentPage === totalPages, 'last');
+    paginationEl.appendChild(lastBtn);
+}
+
+// 创建分页按钮
+function createPageButton(text, page, isDisabled, type) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    const isActive = type === 'number' && page === currentPage;
+    btn.className = `pagination-btn ${isActive ? 'pagination-btn-active' : ''} ${type === 'first' || type === 'last' || type === 'prev' || type === 'next' ? 'pagination-btn-nav' : ''}`;
+    btn.innerHTML = text;
+    btn.onclick = function() {
+        if (!isDisabled && page >= 1 && page <= Math.ceil(currentAssets.length / itemsPerPage)) {
+            goToPage(page);
+        }
+    };
+    if (isDisabled) {
+        btn.disabled = true;
+    }
+    return btn;
+}
+
+// 跳转到指定页面
+function goToPage(page) {
+    const totalPages = Math.max(1, Math.ceil(currentAssets.length / itemsPerPage));
+    if (page >= 1 && page <= totalPages && page !== currentPage) {
+        currentPage = page;
+        updateAssetsTable();
+        // 滚动到表格顶部
+        document.querySelector('.main-content')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 }
 
 // 获取状态徽章
@@ -567,17 +779,19 @@ async function shutdownAsset(assetId) {
 }
 
 
-// 删除资产
+// 删除资产（由confirmAndDeleteAsset调用）
 async function deleteAsset(assetId) {
-    if (confirm('确定要删除这个资产吗？')) {
-        try {
-            const response = await axios.delete(`/api/assets/${assetId}`);
-            showAlert(response.data.message, 'success');
+    try {
+        const response = await axios.delete(`/api/assets/${assetId}`);
+        if (response.data.success) {
+            showAlert(response.data.message || '资产删除成功！', 'success');
             loadAssets();
-        } catch (error) {
-            console.error('删除资产失败:', error);
-            showAlert('删除资产失败！', 'danger');
+        } else {
+            showAlert(response.data.message || '删除资产失败！', 'danger');
         }
+    } catch (error) {
+        console.error('删除资产失败:', error);
+        showAlert('删除资产失败！', 'danger');
     }
 }
 
@@ -607,60 +821,48 @@ function showAlert(message, type) {
 </script>
 
 <style>
-/* 下拉菜单样式 */
-.dropdown-menu {
+/* 更多操作菜单样式 */
+.more-actions-menu {
     background-color: #1a1a1a !important;
     border: 1px solid #333 !important;
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 212, 255, 0.1) !important;
     border-radius: 8px !important;
     padding: 6px 0 !important;
-    min-width: 130px !important;
-    width: 130px !important;
-    height: 90px !important;
-    z-index: 10000 !important;
-    position: fixed !important;
-    display: none !important;
-    visibility: hidden !important;
-    opacity: 0 !important;
-    transition: opacity 0.2s ease, transform 0.2s ease !important;
-    transform: scale(0.9) !important;
-    will-change: opacity, transform !important;
-    contain: layout style paint !important;
-    backdrop-filter: blur(10px) !important;
-    -webkit-backdrop-filter: blur(10px) !important;
-    pointer-events: auto !important;
+    min-width: 120px !important;
+    overflow: hidden;
 }
 
-.dropdown-item {
-    color: #fff;
-    padding: 10px 18px;
-    font-size: 14px;
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    text-decoration: none;
-    border: none;
-    background: none;
-    width: 100%;
-    text-align: left;
-    transition: all 0.2s ease;
-    cursor: pointer;
-    position: relative;
+.more-actions-item {
+    color: #fff !important;
+    padding: 10px 18px !important;
+    font-size: 14px !important;
+    white-space: nowrap !important;
+    display: block !important;
+    text-decoration: none !important;
+    border: none !important;
+    background: none !important;
+    width: 100% !important;
+    text-align: left !important;
+    transition: all 0.2s ease !important;
+    cursor: pointer !important;
+    box-sizing: border-box !important;
 }
 
-.dropdown-item:hover {
-    background-color: rgba(0, 212, 255, 0.1);
-    color: #00d4ff;
-    transform: translateX(2px);
+.more-actions-item:hover {
+    background-color: rgba(0, 212, 255, 0.15) !important;
+    color: #00d4ff !important;
 }
 
-.dropdown-item.text-danger:hover {
-    background-color: rgba(220, 53, 69, 0.2);
-    color: #ff6b7a;
-    transform: translateX(2px);
+.more-actions-item-danger {
+    color: #ff6b7a !important;
 }
 
-.dropdown-item i {
+.more-actions-item-danger:hover {
+    background-color: rgba(220, 53, 69, 0.2) !important;
+    color: #ff4757 !important;
+}
+
+.more-actions-item i {
     margin-right: 8px;
     width: 16px;
     text-align: center;
@@ -670,16 +872,92 @@ function showAlert(message, type) {
 .table-responsive {
     overflow-x: auto;
     overflow-y: visible;
+    width: 100%;
+    padding-bottom: 80px; /* 为最后一行展开的菜单预留空间 */
+    margin-bottom: 10px;
+}
+
+.table {
+    width: 100% !important;
+    min-width: 1600px !important;
 }
 
 .table th, .table td {
     white-space: nowrap;
-    padding: 12px 8px;
+    padding: 12px 15px;
+}
+
+.table tbody tr:last-child td {
+    padding-bottom: 80px; /* 最后一行增加底部间距 */
 }
 
 .table td:last-child {
     overflow: visible;
     position: relative;
+}
+
+/* 分页容器样式 */
+.pagination-container {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 12px 16px;
+}
+
+.pagination-info {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 14px;
+}
+
+/* 分页按钮样式（按图片样式） */
+.pagination-buttons {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.pagination-btn {
+    min-width: 32px;
+    height: 32px;
+    padding: 6px 12px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    user-select: none;
+}
+
+.pagination-btn:hover:not(.pagination-btn-active):not(:disabled) {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.pagination-btn-active {
+    background-color: #5B9BD5 !important;
+    border-color: #5B9BD5 !important;
+    color: #000 !important;
+    font-weight: bold;
+    cursor: default;
+}
+
+.pagination-btn:disabled,
+.pagination-btn-disabled {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.4);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.pagination-btn-nav {
+    font-weight: bold;
 }
 
 /* 操作按钮组优化 */
@@ -692,17 +970,24 @@ function showAlert(message, type) {
     cursor: pointer !important;
     pointer-events: auto !important;
     position: relative !important;
-    z-index: 10 !important;
+    z-index: 1001 !important;
     min-width: 40px !important;
     min-height: 38px !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent !important;
 }
 
 .btn-group .dropdown-toggle:hover {
     background-color: #5a6268 !important;
+    transform: scale(1.05) !important;
+    transition: all 0.2s ease !important;
 }
 
 .btn-group .dropdown-toggle:active {
     background-color: #545b62 !important;
+    transform: scale(0.98) !important;
 }
 
 .btn-group .dropdown-toggle:focus {

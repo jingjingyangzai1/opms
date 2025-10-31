@@ -13,6 +13,11 @@ import time
 import logging
 import uuid
 from config import config
+import pymysql
+import psycopg2
+from psycopg2.pool import SimpleConnectionPool
+from contextlib import contextmanager
+import base64
 
 # 获取配置
 config_name = os.environ.get('FLASK_ENV', 'default')
@@ -331,22 +336,26 @@ def background_connection_test():
                     maintenance_count = 0
                     
                     for asset in assets:
-                        # 跳过手动设置为维护状态的资产
-                        if asset.status == 'maintenance':
-                            maintenance_count += 1
-                            continue
-                        
-                        # 测试连接
+                        # 测试连接（包括维护状态的资产）
                         is_online, message = test_asset_connection(asset)
                         
                         # 更新状态
                         old_status = asset.status
                         if is_online:
+                            # 如果设备能连接，设置为online（包括从maintenance恢复的情况）
                             asset.status = 'online'
                             online_count += 1
+                            if old_status == 'maintenance':
+                                logger.info(f"资产从维护中恢复: {asset.name} ({asset.ip_address})")
                         else:
-                            asset.status = 'offline'
-                            offline_count += 1
+                            # 设备离线
+                            if old_status == 'maintenance':
+                                # 如果之前是maintenance且现在不能连接，保持maintenance（可能是重启中）
+                                maintenance_count += 1
+                            else:
+                                # 其他情况设置为offline
+                                asset.status = 'offline'
+                                offline_count += 1
                         
                         # 如果状态发生变化，更新最后更新时间
                         if old_status != asset.status:
@@ -384,6 +393,11 @@ def index():
         return redirect(url_for('training_assets'))
     return redirect(url_for('login'))
 
+@app.route('/browser-compatibility')
+def browser_compatibility():
+    """浏览器兼容性检测页面"""
+    return render_template('browser_compatibility.html')
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -410,6 +424,60 @@ def logout():
     logger.info(f"用户登出: {current_user.username}")
     logout_user()
     return redirect(url_for('login'))
+
+# ========== 前后端分离认证API ==========
+@app.route('/api/auth/login', methods=['POST'])
+def api_auth_login():
+    try:
+        data = request.get_json() or {}
+        username = (data.get('username') or '').strip()
+        password = (data.get('password') or '').strip()
+
+        if not username or not password:
+            return jsonify({'success': False, 'message': '用户名和密码不能为空！'}), 400
+
+        user = User.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password_hash, password):
+            login_user(user)
+            logger.info(f"API用户登录成功: {username}")
+            return jsonify({
+                'success': True,
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'name': getattr(user, 'name', user.username)
+                }
+            })
+        else:
+            logger.warning(f"API用户登录失败: {username}")
+            return jsonify({'success': False, 'message': '用户名或密码错误！'}), 401
+    except Exception as e:
+        logger.error(f"API登录异常: {e}")
+        return jsonify({'success': False, 'message': '登录失败'}), 500
+
+@app.route('/api/auth/logout', methods=['POST'])
+@login_required
+def api_auth_logout():
+    try:
+        logger.info(f"API用户登出: {current_user.username}")
+        logout_user()
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"API登出异常: {e}")
+        return jsonify({'success': False, 'message': '登出失败'}), 500
+
+@app.route('/api/auth/me', methods=['GET'])
+def api_auth_me():
+    if current_user.is_authenticated:
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': current_user.id,
+                'username': current_user.username,
+                'name': getattr(current_user, 'name', current_user.username)
+            }
+        })
+    return jsonify({'success': False}), 401
 
 # 仪表盘功能已移除
 
@@ -1099,6 +1167,534 @@ def create_tables():
             db.session.add(asset)
         
         db.session.commit()
+
+# ========== 数据库管理功能 ==========
+
+# 数据库连接管理器
+class DatabaseConnectionManager:
+    def __init__(self):
+        self.pools = {}  # {connection_id: pool}
+        self.connections = {}  # {connection_id: {'type': 'mysql'|'postgresql', 'host': ..., 'user': ...}}
+        self.saved_connections = {}  # 保存的连接信息（不含密码）
+        self.connection_names = {}  # {connection_id: name}
+        self.lock = threading.Lock()
+        self.connections_file = 'database_connections.json'
+        self._load_connections()
+    
+    def _load_connections(self):
+        """从文件加载保存的连接信息"""
+        try:
+            if os.path.exists(self.connections_file):
+                with open(self.connections_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    self.saved_connections = data.get('connections', {})
+                    self.connection_names = data.get('names', {})
+                    
+                    # 确保port是int类型
+                    for conn_id in self.saved_connections:
+                        if 'port' in self.saved_connections[conn_id]:
+                            self.saved_connections[conn_id]['port'] = int(self.saved_connections[conn_id]['port'])
+                    
+                    logger.info(f"已加载 {len(self.saved_connections)} 个保存的连接")
+        except Exception as e:
+            logger.error(f"加载保存的连接失败: {e}")
+            self.saved_connections = {}
+            self.connection_names = {}
+    
+    def _save_connections(self):
+        """保存连接信息到文件"""
+        try:
+            with open(self.connections_file, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'connections': self.saved_connections,
+                    'names': self.connection_names
+                }, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"保存连接信息失败: {e}")
+    
+    def get_saved_connections(self):
+        """获取所有保存的连接信息"""
+        return list(self.saved_connections.values())
+    
+    def add_saved_connection(self, connection_id, name, db_type, host, port, username, database=None):
+        """保存连接信息"""
+        self.saved_connections[connection_id] = {
+            'id': connection_id,
+            'name': name,
+            'type': db_type,
+            'host': host,
+            'port': int(port),
+            'username': username,
+            'database': database
+        }
+        self.connection_names[connection_id] = name
+        self._save_connections()
+    
+    def remove_saved_connection(self, connection_id):
+        """删除保存的连接"""
+        if connection_id in self.saved_connections:
+            del self.saved_connections[connection_id]
+        if connection_id in self.connection_names:
+            del self.connection_names[connection_id]
+        self._save_connections()
+    
+    def create_connection(self, db_type, host, port, username, password, database=None):
+        """创建数据库连接池"""
+        connection_id = str(uuid.uuid4())
+        
+        try:
+            with self.lock:
+                if db_type == 'mysql':
+                    # 测试连接
+                    test_conn = pymysql.connect(
+                        host=host,
+                        port=int(port),
+                        user=username,
+                        password=password,
+                        connect_timeout=10,
+                        cursorclass=pymysql.cursors.DictCursor
+                    )
+                    test_conn.close()
+                    
+                    # 创建连接池
+                    # MySQL 使用简单的连接池管理
+                    self.connections[connection_id] = {
+                        'type': 'mysql',
+                        'host': host,
+                        'port': int(port),
+                        'database': database,
+                        'username': username,
+                        'password': password
+                    }
+                    
+                elif db_type == 'postgresql':
+                    # PostgreSQL 默认连接到 postgres 数据库
+                    target_db = database if database else 'postgres'
+                    # 测试连接
+                    test_conn = psycopg2.connect(
+                        host=host,
+                        port=int(port),
+                        database=target_db,
+                        user=username,
+                        password=password,
+                        connect_timeout=10
+                    )
+                    test_conn.close()
+                    
+                    # 创建连接池
+                    minconn = 1
+                    maxconn = 5
+                    pool = SimpleConnectionPool(
+                        minconn, maxconn,
+                        host=host,
+                        port=int(port),
+                        database=target_db,
+                        user=username,
+                        password=password
+                    )
+                    self.pools[connection_id] = pool
+                    self.connections[connection_id] = {
+                        'type': 'postgresql',
+                        'host': host,
+                        'port': int(port),
+                        'database': target_db,
+                        'username': username
+                    }
+                else:
+                    raise ValueError(f"不支持的数据库类型: {db_type}")
+                
+                logger.info(f"数据库连接创建成功: {connection_id} ({db_type}://{host}:{port}/{database})")
+                return connection_id, True, "连接成功"
+                
+        except Exception as e:
+            logger.error(f"数据库连接创建失败: {e}")
+            return None, False, str(e)
+    
+    def execute_sql(self, connection_id, sql):
+        """执行SQL语句"""
+        if connection_id not in self.connections:
+            return None, False, "连接不存在"
+        
+        try:
+            conn_info = self.connections[connection_id]
+            db_type = conn_info['type']
+            
+            if db_type == 'mysql':
+                # 连接MySQL时不指定数据库（允许跨库查询）
+                conn_params = {
+                    'host': conn_info['host'],
+                    'port': int(conn_info['port']),
+                    'user': conn_info['username'],
+                    'password': conn_info['password'],
+                    'cursorclass': pymysql.cursors.DictCursor,
+                    'connect_timeout': 10
+                }
+                # 不指定database参数，允许跨数据库查询
+                
+                logger.info(f"连接MySQL参数: host={conn_info['host']}, port={conn_info['port']}")
+                logger.info(f"执行的SQL: {sql}")
+                logger.info(f"SQL语句数量: {len([s.strip() for s in sql.split(';') if s.strip()])}")
+                
+                conn = pymysql.connect(**conn_params)
+                
+                try:
+                    cursor = conn.cursor()
+                    
+                    try:
+                        # 支持多条SQL语句（用分号分隔）
+                        statements = [s.strip() for s in sql.split(';') if s.strip()]
+                        
+                        if not statements:
+                            return {'message': '没有有效的SQL语句'}, False, "SQL语句为空"
+                        
+                        # 执行所有SQL语句
+                        last_result = None
+                        for idx, statement in enumerate(statements):
+                            logger.info(f"执行SQL语句 {idx + 1}/{len(statements)}: {statement[:100]}...")
+                            
+                            affected_rows = cursor.execute(statement)
+                            
+                            # 判断是否为查询语句（只对最后一个语句返回结果）
+                            if idx == len(statements) - 1:
+                                sql_upper = statement.upper()
+                                is_query = sql_upper.startswith(('SELECT', 'SHOW', 'DESCRIBE', 'DESC', 'EXPLAIN'))
+                                
+                                if is_query:
+                                    rows = cursor.fetchall()
+                                    
+                                    # 获取列名
+                                    columns = []
+                                    if cursor.description:
+                                        columns = [desc[0] for desc in cursor.description]
+                                    
+                                    logger.info(f"SQL查询结果: columns={columns}, row_count={len(rows)}")
+                                    if rows and len(rows) > 0:
+                                        logger.info(f"第一行数据示例: {rows[0]}, 类型: {type(rows[0])}")
+                                    
+                                    # 由于使用了DictCursor，rows已经是字典列表
+                                    result = {
+                                        'rows': rows,
+                                        'columns': columns,
+                                        'row_count': len(rows)
+                                    }
+                                else:
+                                    conn.commit()
+                                    result = {
+                                        'affected_rows': affected_rows,
+                                        'message': f'执行成功，影响了 {affected_rows} 行'
+                                    }
+                                last_result = result
+                            else:
+                                # 非最后一个语句（如USE），执行但不返回结果
+                                logger.info(f"中间语句执行成功")
+                        
+                        return last_result if last_result else {'message': '执行成功'}, True, "执行成功"
+                        
+                    except Exception as sql_error:
+                        logger.error(f"SQL执行出错: {sql_error}", exc_info=True)
+                        return None, False, f"SQL执行失败: {str(sql_error)}"
+                    
+                finally:
+                    try:
+                        cursor.close()
+                    except:
+                        pass
+                    try:
+                        conn.close()
+                    except:
+                        pass
+                    
+            elif db_type == 'postgresql':
+                if connection_id in self.pools:
+                    pool = self.pools[connection_id]
+                    conn = pool.getconn()
+                    try:
+                        cursor = conn.cursor()
+                        
+                        sql_upper = sql.strip().upper()
+                        # 判断是否为查询语句
+                        is_query = sql_upper.startswith(('SELECT', 'SHOW', 'DESCRIBE', 'DESC', 'EXPLAIN'))
+                        
+                        if is_query:
+                            cursor.execute(sql)
+                            rows = cursor.fetchall()
+                            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+                            
+                            logger.info(f"PostgreSQL查询结果: columns={columns}, row_count={len(rows)}")
+                            if rows and len(rows) > 0:
+                                logger.info(f"第一行数据示例: {rows[0]}, 类型: {type(rows[0])}")
+                            
+                            # 将行数据转换为字典列表
+                            result_rows = []
+                            for row in rows:
+                                row_dict = dict(zip(columns, row))
+                                result_rows.append(row_dict)
+                            
+                            result = {
+                                'rows': result_rows,
+                                'columns': columns,
+                                'row_count': len(rows)
+                            }
+                        else:
+                            cursor.execute(sql)
+                            conn.commit()
+                            affected_rows = cursor.rowcount
+                            result = {
+                                'affected_rows': affected_rows,
+                                'message': f'执行成功，影响了 {affected_rows} 行'
+                            }
+                        
+                        return result, True, "执行成功"
+                    except Exception as sql_error:
+                        logger.error(f"PostgreSQL SQL执行出错: {sql_error}", exc_info=True)
+                        return None, False, f"SQL执行失败: {str(sql_error)}"
+                    finally:
+                        try:
+                            cursor.close()
+                        except:
+                            pass
+                        try:
+                            pool.putconn(conn)
+                        except:
+                            pass
+                else:
+                    return None, False, "连接池不存在"
+        except Exception as e:
+            import traceback
+            logger.error(f"SQL执行失败: {e}", exc_info=True)
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return None, False, f"执行失败: {str(e)}"
+    
+    def close_connection(self, connection_id):
+        """关闭数据库连接"""
+        try:
+            with self.lock:
+                if connection_id in self.pools:
+                    pool = self.pools[connection_id]
+                    pool.closeall()
+                    del self.pools[connection_id]
+                
+                if connection_id in self.connections:
+                    del self.connections[connection_id]
+                
+                logger.info(f"数据库连接已关闭: {connection_id}")
+                return True, "连接已关闭"
+        except Exception as e:
+            logger.error(f"关闭数据库连接失败: {e}")
+            return False, str(e)
+
+db_connection_manager = DatabaseConnectionManager()
+
+# 数据库管理路由
+@app.route('/database-manager')
+@login_required
+def database_manager():
+    """数据库管理页面"""
+    return render_template('database_manager.html')
+
+@app.route('/api/database/connect', methods=['POST'])
+@login_required
+def api_database_connect():
+    """连接数据库"""
+    try:
+        data = request.get_json()
+        db_type = data.get('type')
+        host = data.get('host')
+        port = data.get('port', 3306 if db_type == 'mysql' else 5432)
+        database = data.get('database')  # 可选
+        username = data.get('username')
+        password = data.get('password')
+        name = data.get('name', f'{host}:{port}')  # 连接名称
+        
+        if not all([db_type, host, username]):
+            return jsonify({'success': False, 'message': '缺少必需参数'}), 400
+        
+        connection_id, success, message = db_connection_manager.create_connection(
+            db_type, host, port, username, password, database
+        )
+        
+        if success:
+            # 保存连接信息（不含密码）
+            db_connection_manager.add_saved_connection(
+                connection_id, name, db_type, host, port, username, database
+            )
+            
+            return jsonify({
+                'success': True,
+                'connection_id': connection_id,
+                'message': message
+            })
+        else:
+            return jsonify({'success': False, 'message': message}), 400
+            
+    except Exception as e:
+        logger.error(f"数据库连接失败: {e}")
+        return jsonify({'success': False, 'message': f'连接失败: {str(e)}'}), 500
+
+@app.route('/api/database/saved', methods=['GET'])
+@login_required
+def api_database_saved():
+    """获取保存的连接列表"""
+    try:
+        connections = db_connection_manager.get_saved_connections()
+        return jsonify({
+            'success': True,
+            'connections': connections
+        })
+    except Exception as e:
+        logger.error(f"获取保存的连接失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/database/reconnect', methods=['POST'])
+@login_required
+def api_database_reconnect():
+    """重新连接数据库（使用保存的信息）"""
+    try:
+        data = request.get_json()
+        connection_id = data.get('connection_id')
+        password = data.get('password')  # 需要重新输入密码
+        
+        if not connection_id:
+            return jsonify({'success': False, 'message': '缺少connection_id'}), 400
+        
+        # 从保存的连接中获取信息
+        saved_conn = db_connection_manager.saved_connections.get(connection_id)
+        if not saved_conn:
+            return jsonify({'success': False, 'message': '连接不存在'}), 400
+        
+        # 重新连接（确保port是int类型）
+        new_connection_id, success, message = db_connection_manager.create_connection(
+            saved_conn['type'],
+            saved_conn['host'],
+            int(saved_conn['port']),
+            saved_conn['username'],
+            password,
+            saved_conn.get('database')
+        )
+        
+        if success:
+            # 保留旧的连接名
+            db_connection_manager.remove_saved_connection(connection_id)
+            db_connection_manager.add_saved_connection(
+                new_connection_id, saved_conn['name'],
+                saved_conn['type'], saved_conn['host'], int(saved_conn['port']),
+                saved_conn['username'], saved_conn.get('database')
+            )
+            
+            return jsonify({
+                'success': True,
+                'connection_id': new_connection_id,
+                'message': message
+            })
+        else:
+            return jsonify({'success': False, 'message': message}), 400
+            
+    except Exception as e:
+        logger.error(f"重新连接失败: {e}")
+        return jsonify({'success': False, 'message': f'连接失败: {str(e)}'}), 500
+
+@app.route('/api/database/execute', methods=['POST'])
+@login_required
+def api_database_execute():
+    """执行SQL语句"""
+    try:
+        data = request.get_json()
+        connection_id = data.get('connection_id')
+        sql = data.get('sql')
+        
+        if not connection_id or not sql:
+            return jsonify({'success': False, 'message': '缺少必需参数'}), 400
+        
+        # 执行SQL（暂时允许所有操作，后续可根据需要添加安全检查）
+        # 记录执行的SQL
+        logger.info(f"执行SQL: connection_id={connection_id}, sql={sql}")
+        
+        result, success, message = db_connection_manager.execute_sql(connection_id, sql)
+        
+        if success:
+            logger.info(f"SQL执行成功: {message}")
+            # 详细记录返回给前端的数据
+            if result:
+                logger.info(f"返回结果类型: {type(result)}")
+                logger.info(f"结果内容: {result}")
+                if isinstance(result, dict) and 'rows' in result:
+                    logger.info(f"返回行数: {len(result.get('rows', []))}")
+                    if result.get('rows') and len(result.get('rows', [])) > 0:
+                        logger.info(f"第一行数据: {result['rows'][0]}")
+                    else:
+                        logger.warning("返回的rows为空或长度为0")
+            
+            return jsonify({
+                'success': True,
+                'result': result,
+                'message': message
+            })
+        else:
+            logger.error(f"SQL执行失败: {message}")
+            return jsonify({'success': False, 'message': message}), 400
+            
+    except Exception as e:
+        logger.error(f"SQL执行异常: {e}", exc_info=True)
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'message': f'执行失败: {str(e)}'}), 500
+
+@app.route('/api/database/disconnect', methods=['POST'])
+@login_required
+def api_database_disconnect():
+    """断开数据库连接"""
+    try:
+        data = request.get_json()
+        connection_id = data.get('connection_id')
+        
+        if not connection_id:
+            return jsonify({'success': False, 'message': '缺少connection_id'}), 400
+        
+        success, message = db_connection_manager.close_connection(connection_id)
+        
+        if success:
+            return jsonify({'success': True, 'message': message})
+        else:
+            return jsonify({'success': False, 'message': message}), 400
+            
+    except Exception as e:
+        logger.error(f"断开数据库连接失败: {e}")
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'}), 500
+
+@app.route('/api/database/delete', methods=['POST'])
+@login_required
+def api_database_delete():
+    """删除保存的连接"""
+    try:
+        data = request.get_json()
+        connection_id = data.get('connection_id')
+        
+        logger.info(f"删除连接请求: connection_id={connection_id}")
+        
+        if not connection_id:
+            return jsonify({'success': False, 'message': '缺少connection_id'}), 400
+        
+        # 记录删除前的连接数量
+        before_count = len(db_connection_manager.saved_connections)
+        logger.info(f"删除前连接数量: {before_count}")
+        
+        # 先断开连接（如果存在）
+        if connection_id in db_connection_manager.connections:
+            logger.info(f"正在关闭连接: {connection_id}")
+            db_connection_manager.close_connection(connection_id)
+        
+        # 删除保存的连接信息
+        db_connection_manager.remove_saved_connection(connection_id)
+        
+        # 记录删除后的连接数量
+        after_count = len(db_connection_manager.saved_connections)
+        logger.info(f"删除后连接数量: {after_count}")
+        
+        return jsonify({'success': True, 'message': '删除成功'})
+            
+    except Exception as e:
+        logger.error(f"删除连接失败: {e}")
+        return jsonify({'success': False, 'message': f'删除失败: {str(e)}'}), 500
 
 if __name__ == '__main__':
     with app.app_context():

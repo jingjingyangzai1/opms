@@ -3,9 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="renderer" content="webkit">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <!-- 禁用缓存，确保总是加载最新版本 -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <!-- IE兼容性支持 -->
+    <!--[if lt IE 9]>
+    <script src="https://cdn.jsdelivr.net/npm/html5shiv@3.7.3/dist/html5shiv.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/respond.js@1.4.2/dest/respond.min.js"></script>
+    <![endif]-->
     <title>{% block title %}运维管理系统{% endblock %}</title>
+    <!-- Bootstrap 5.1.3 with IE11 support -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome with fallback -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- IE11 CSS Grid fallback -->
+    <!--[if IE 11]>
+    <style>
+        .container-fluid { display: block !important; }
+        .row { display: block !important; }
+        .col-md-3, .col-lg-2 { display: block !important; width: 100% !important; }
+        .col-md-9, .col-lg-10 { display: block !important; width: 100% !important; }
+    </style>
+    <![endif]-->
     <style>
         * {
             margin: 0;
@@ -15,9 +40,17 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background: #0c0c0c;
             background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
             color: #ffffff;
             min-height: 100vh;
+        }
+        
+        /* IE11 fallback for gradient */
+        @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
+            body {
+                background: #0c0c0c;
+            }
         }
 
         /* 科技风格滚动条 */
@@ -62,10 +95,20 @@
 
         .tech-card {
             background: rgba(255, 255, 255, 0.05);
+            background-color: rgba(255, 255, 255, 0.05);
+            -webkit-backdrop-filter: blur(10px);
+            -moz-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(0, 212, 255, 0.3);
             border-radius: 12px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* IE11 fallback for backdrop-filter */
+        @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
+            .tech-card {
+                background-color: rgba(0, 0, 0, 0.8);
+            }
         }
 
         .tech-btn {
@@ -74,10 +117,18 @@
             border-radius: 8px;
             color: white;
             font-weight: bold;
+            -webkit-transition: all 0.3s ease;
+            -moz-transition: all 0.3s ease;
+            -ms-transition: all 0.3s ease;
+            -o-transition: all 0.3s ease;
             transition: all 0.3s ease;
         }
 
         .tech-btn:hover {
+            -webkit-transform: translateY(-2px);
+            -moz-transform: translateY(-2px);
+            -ms-transform: translateY(-2px);
+            -o-transform: translateY(-2px);
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(0, 212, 255, 0.4);
             color: white;
@@ -158,6 +209,10 @@
             position: absolute;
             right: 10px;
             top: 50%;
+            -webkit-transform: translateY(-50%);
+            -moz-transform: translateY(-50%);
+            -ms-transform: translateY(-50%);
+            -o-transform: translateY(-50%);
             transform: translateY(-50%);
             width: 0;
             height: 0;
@@ -207,6 +262,8 @@
 
         .sidebar {
             background: rgba(0, 0, 0, 0.3);
+            -webkit-backdrop-filter: blur(10px);
+            -moz-backdrop-filter: blur(10px);
             backdrop-filter: blur(10px);
             border-right: 1px solid rgba(0, 212, 255, 0.3);
         }
@@ -242,6 +299,21 @@
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- IE11兼容性支持 -->
+    <!--[if IE 11]>
+    <script src="https://cdn.jsdelivr.net/npm/es6-promise@4.2.8/dist/es6-promise.auto.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/whatwg-fetch@3.6.2/dist/fetch.umd.js"></script>
+    <![endif]-->
+    <!-- 通用兼容性检测 -->
+    <script>
+        // 检测浏览器兼容性
+        if (!window.Promise) {
+            document.write('<script src="https://cdn.jsdelivr.net/npm/es6-promise@4.2.8/dist/es6-promise.auto.min.js"><\/script>');
+        }
+        if (!window.fetch) {
+            document.write('<script src="https://cdn.jsdelivr.net/npm/whatwg-fetch@3.6.2/dist/fetch.umd.js"><\/script>');
+        }
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>
